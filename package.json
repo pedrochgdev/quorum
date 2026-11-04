@@ -1,0 +1,22 @@
+{
+  "name": "quorum",
+  "version": "0.1.0",
+  "description": "Quorum: AI agents pool scattered purchase intent into group buying power, held with PayPal authorizations and captured only when the group forms.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.ts",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.ts",
+    "seed": "node --disable-warning=ExperimentalWarning scripts/seed.ts",
+    "test": "node --disable-warning=ExperimentalWarning --test 'test/*.test.ts'",
+    "e2e:mock": "node --disable-warning=ExperimentalWarning scripts/e2e-mock.ts",
+    "e2e:paypal-stub": "node --disable-warning=ExperimentalWarning scripts/e2e-paypal-stub.ts",
+    "check": "npm test && npm run e2e:mock && npm run e2e:paypal-stub",
+    "sandbox:capture-test": "node --disable-warning=ExperimentalWarning scripts/sandbox-capture-test.ts",
+    "typecheck": "npx -y -p typescript@5 tsc --noEmit"
+  }
+}

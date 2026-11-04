@@ -1,0 +1,53 @@
+# Render blueprint: one web service with a persistent disk for SQLite,
+# plus a cron job that settles due groups every 15 minutes.
+# The web service also settles in-process every SETTLE_INTERVAL_SECONDS.
+services:
+  - type: web
+    name: quorum
+    runtime: node
+    plan: starter # a persistent disk needs a paid instance; keep it running through judging (Dec 15)
+    buildCommand: "true"
+    startCommand: npm start
+    healthCheckPath: /api/health
+    disk:
+      name: quorum-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22.18.0"
+      - key: DATA_DIR
+        value: /var/data
+      - key: BASE_URL
+        sync: false # e.g. https://quorum.onrender.com
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CHANNEL3_API_KEY
+        sync: false
+      - key: CRON_SECRET
+        generateValue: true
+      - key: DEMO_ADMIN
+        value: "false"
+
+  - type: cron
+    name: quorum-settle
+    runtime: node
+    schedule: "*/15 * * * *"
+    buildCommand: "true"
+    startCommand: 'node -e "fetch(process.env.QUORUM_URL + ''/api/cron/settle'', {method:''POST'', headers:{Authorization:''Bearer '' + process.env.CRON_SECRET}}).then(r=>r.text()).then(console.log)"'
+    envVars:
+      - key: NODE_VERSION
+        value: "22.18.0"
+      - key: QUORUM_URL
+        sync: false # same as the web service BASE_URL
+      - key: CRON_SECRET
+        fromService:
+          type: web
+          name: quorum
+          envVarKey: CRON_SECRET
