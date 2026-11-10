@@ -16,7 +16,8 @@ import {
 } from '../models.ts';
 import { authorizationAmount, minMembers, priceFor } from '../pricing.ts';
 import { newId, nowIso, safeJson } from '../util.ts';
-import { marketSearch } from './catalog.ts';
+import { copy, notify } from '../notify.ts';
+import { marketFor } from './catalog.ts';
 import { embed, normalizeText, similarity, type Embedding } from './embed.ts';
 import { DATA_RULE, fence, structured } from './llm.ts';
 
@@ -163,14 +164,14 @@ export function hardFit(parsed: ParsedIntent, product: Product, quorum?: Quorum)
 
 type Candidate = { product: Product; quorum?: Quorum; score: number };
 
-async function confirmFit(raw: string, parsed: ParsedIntent, c: Candidate, others: string[]) {
+async function confirmFit(raw: string, parsed: ParsedIntent, c: Candidate, others: string[], lang = 'en') {
   const answer = await structured<{ fits: boolean; reason: string }>({
     system: `You check whether a shopper would accept a specific product as fulfilling their request. Be strict about stated requirements; ignore price (checked elsewhere). ${DATA_RULE}`,
     prompt: [
       fence('buyer_request', raw),
       fence('product', `${c.product.title}\n${c.product.description}\nKeywords: ${c.product.keywords}`),
       others.length ? fence('group_members_requests', others.slice(0, 5).join('\n')) : '',
-      'Would this buyer accept this product? Answer with fits=true/false and a one-sentence reason a shopper can read.',
+      `Would this buyer accept this product? Answer with fits=true/false and a one-sentence reason a shopper can read${lang === 'es' ? ', written in Spanish' : ''}.`,
     ].join('\n'),
     schema: {
       type: 'object',
@@ -193,7 +194,8 @@ export type RouteResult = {
 };
 
 /** Parse, store and route an intent to an open group, a new group, or the demand board. */
-export async function submitIntent(text: string, email: string | null): Promise<RouteResult> {
+export async function submitIntent(text: string, email: string | null, lang = 'en'): Promise<RouteResult> {
+  const es = lang === 'es';
   const { parsed, engine } = await parseIntent(text);
   const iText = intentText(parsed, text);
   const emb = await embed(iText);
@@ -225,7 +227,7 @@ export async function submitIntent(text: string, email: string | null): Promise<
     const others = c.quorum
       ? all<{ text: string }>('SELECT text FROM intents WHERE quorum_id = ? ORDER BY created_at DESC LIMIT 5', c.quorum.id).map((r) => r.text)
       : [];
-    const verdict = await confirmFit(text, parsed, c, others);
+    const verdict = await confirmFit(text, parsed, c, others, lang);
     if (verdict) {
       logAgent('intent', c.quorum?.id ?? c.product.id, verdict.fits ? 'fit' : 'no-fit', verdict.reason, 'llm');
       if (verdict.fits) {
@@ -236,7 +238,9 @@ export async function submitIntent(text: string, email: string | null): Promise<
     } else {
       decisionEngine = 'heuristic';
       chosen = c; // heuristic: best candidate that passed hard filters and similarity
-      reason = `Matched on "${parsed.product_query}" (similarity ${c.score.toFixed(2)}), within your price and timing.`;
+      reason = es
+        ? `Coincide con "${parsed.product_query}" (similitud ${c.score.toFixed(2)}), dentro de tu precio y tu plazo.`
+        : `Matched on "${parsed.product_query}" (similarity ${c.score.toFixed(2)}), within your price and timing.`;
       break;
     }
   }
@@ -250,7 +254,9 @@ export async function submitIntent(text: string, email: string | null): Promise<
     );
 
   if (!chosen) {
-    const why = 'No group or product fits yet. Your request is on the demand board, where merchants see grouped demand before they stock.';
+    const why = es
+      ? 'Todavía no hay un grupo o producto que encaje. Tu pedido está en el tablero de demanda, donde los comercios ven la demanda agrupada antes de abastecerse.'
+      : 'No group or product fits yet. Your request is on the demand board, where merchants see grouped demand before they stock.';
     insert(null, 'waiting', why);
     logAgent('intent', id, 'waiting', why, decisionEngine);
     return { intent: getIntentRow(id), outcome: 'waiting', quorumId: null, explanation: why, engine };
@@ -262,7 +268,7 @@ export async function submitIntent(text: string, email: string | null): Promise<
     quorum = createQuorum(chosen.product, config.quorum.hours, `Group for: ${parsed.product_query}`);
     outcome = 'opened';
     // Market check for the new group (Channel3). Empty when no key is set.
-    const market = await marketSearch(chosen.product.title, { limit: 5 });
+    const market = await marketFor(chosen.product.title, chosen.product.list_price);
     run('UPDATE quorums SET market_json = ? WHERE id = ?', JSON.stringify(market), quorum.id);
     attachWaitingIntents(quorum.id, chosen.product);
   }
@@ -270,9 +276,11 @@ export async function submitIntent(text: string, email: string | null): Promise<
   logAgent('intent', quorum.id, `${outcome === 'opened' ? 'opened group for' : 'grouped'} "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`, reason, decisionEngine);
   const peers = all<{ n: number }>('SELECT COUNT(*) AS n FROM intents WHERE quorum_id = ?', quorum.id)[0].n;
   const committed = authorizedCount(quorum.id);
-  const explanation =
-    `${peers} ${peers === 1 ? 'person is' : 'people are'} looking for ${parsed.product_query}` +
-    `${committed ? `; ${committed} already committed` : ''}. ${reason}`;
+  const explanation = es
+    ? `${peers} ${peers === 1 ? 'persona busca' : 'personas buscan'} ${parsed.product_query}` +
+      `${committed ? `; ${committed} ya ${committed === 1 ? 'se comprometió' : 'se comprometieron'}` : ''}. ${reason}`
+    : `${peers} ${peers === 1 ? 'person is' : 'people are'} looking for ${parsed.product_query}` +
+      `${committed ? `; ${committed} already committed` : ''}. ${reason}`;
   return { intent: getIntentRow(id), outcome, quorumId: quorum.id, explanation, engine };
 }
 
@@ -288,6 +296,12 @@ export function attachWaitingIntents(quorumId: string, product: Product): number
     const score = similarity(intentText(parsed, it.text), safeJson<Embedding | null>(it.embedding_json, null), productText(product), productEmbedding(product));
     if (score < SIMILARITY_THRESHOLD) continue;
     run("UPDATE intents SET quorum_id = ?, status = 'grouped', reason = ? WHERE id = ?", quorumId, 'A merchant opened a group that matches your request.', it.id);
+    // Tell the person who was waiting: this is the moment demand turns into a group.
+    const m = copy(/[áéíóúñ¿¡]|\b(busco|quiero|necesito|hasta|para)\b/i.test(it.text) ? 'es' : 'en', 'matched', {
+      product: product.title,
+      link: `${config.baseUrl}/q/${quorumId}?intent=${it.id}`,
+    });
+    notify(it.email, 'matched', m.subject, m.body, quorumId);
     n++;
   }
   return n;

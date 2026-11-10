@@ -63,3 +63,29 @@ export async function marketSearch(query: string, opts: { maxPrice?: number | nu
     return [];
   }
 }
+
+/**
+ * Comparable offers for a product: a text search returns very different items
+ * (accessories, premium models), so only offers within a band around the
+ * product's own list price count as alternatives a buyer would consider.
+ */
+export function comparableOffers(offers: MarketOffer[], listPrice: number, limit = 5): MarketOffer[] {
+  const lo = listPrice * 0.6;
+  const hi = listPrice * 1.6;
+  const seen = new Set<string>();
+  return offers
+    .filter((o) => o.price >= lo && o.price <= hi)
+    .filter((o) => {
+      const key = `${o.title}|${o.merchant}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => a.price - b.price)
+    .slice(0, limit);
+}
+
+/** Market check for a group: comparable live offers, cheapest first. */
+export async function marketFor(title: string, listPrice: number): Promise<MarketOffer[]> {
+  return comparableOffers(await marketSearch(title, { limit: 12 }), listPrice);
+}
