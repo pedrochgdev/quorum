@@ -54,7 +54,7 @@ main { max-width: 1160px; margin: 0 auto; padding: clamp(1.25rem, 3vw, 2.5rem) c
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn-primary:hover { background: #09574c; border-color: #09574c; }
-.btn-small { padding: 0.4rem 0.7rem; font-size: 0.85rem; border-radius: 8px; }
+.btn-small { padding: 0.4rem 0.7rem; font-size: 0.85rem; border-radius: 8px; white-space: nowrap; }
 .btn-ghost { background: transparent; }
 .btn-danger { color: var(--danger); }
 input, textarea, select { width: 100%; font: inherit; color: inherit; background: #fffdf9; border: 1px solid var(--line); border-radius: 10px; padding: 0.7rem 0.8rem; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
@@ -84,7 +84,7 @@ label:first-child { margin-top: 0; }
 .result-card { border: 1px solid var(--line); border-radius: 12px; padding: 1rem; background: #fcfbf7; }
 .result-card h3 { margin-bottom: 0.3rem; }
 .parsed { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.5rem 0 0.8rem; }
-.how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 3rem; }
+.how { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 3rem; }
 .step { padding: 1.2rem 1.2rem 0.6rem; border-top: 2px solid var(--ink); }
 .step .num { font-family: var(--serif); font-size: 1.6rem; color: var(--accent); }
 .step p { color: #4a463f; font-size: 0.95rem; }
@@ -160,6 +160,53 @@ label:first-child { margin-top: 0; }
 .market { list-style: none; margin: 0; padding: 0; }
 .market li { display: flex; justify-content: space-between; gap: 1rem; padding: 0.5rem 0; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
 
+/* Language toggle, trust list, agents strip */
+.lang-toggle { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 0.2rem 0.7rem; font: 700 0.78rem var(--sans); letter-spacing: 0.04em; cursor: pointer; }
+.lang-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.topbar nav { align-items: center; }
+.trust { list-style: none; margin: 1.25rem 0 0; padding: 0; display: grid; gap: 0.45rem; font-size: 0.95rem; color: #3d3a35; }
+.trust li { padding-left: 1.5rem; position: relative; }
+.trust li::before { content: ''; position: absolute; left: 0; top: 0.42em; width: 0.8rem; height: 0.45rem; border-left: 2px solid var(--accent); border-bottom: 2px solid var(--accent); transform: rotate(-45deg); }
+.agents-strip { margin-top: 3rem; display: flex; justify-content: space-between; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
+.agents-strip > div { max-width: 46rem; }
+.endpoint { font-size: 0.9rem; padding: 0.6rem 0.9rem; border-radius: 10px; background: var(--ink); color: #fff; white-space: nowrap; }
+
+/* Live negotiation */
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.75); } }
+.bubble { animation: rise 0.28s ease-out; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.bubble.typing { animation: none; opacity: 0.9; }
+.dots { display: inline-flex; gap: 4px; padding: 0.25rem 0; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite both; }
+.dots i:nth-child(2) { animation-delay: 0.2s; }
+.dots i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+.bubble .tools { margin: 0 0 0.45rem; align-items: center; }
+.tool-pill { background: #fff; border: 1px solid var(--line); font-family: var(--mono); font-weight: 500; cursor: help; }
+.member.gone { opacity: 0.55; }
+
+/* How the price was reached */
+.ladder { display: grid; gap: 0.55rem; margin: 0.4rem 0 1rem; }
+.ladder-row { display: grid; grid-template-columns: minmax(9rem, 15rem) 1fr auto; gap: 0.75rem; align-items: center; font-size: 0.92rem; }
+.ladder-label { color: #4a463f; }
+.ladder-track { height: 14px; background: #f1ede4; border-radius: 999px; overflow: hidden; }
+.ladder-bar { display: block; height: 100%; border-radius: 999px; background: #cfc8b9; transition: width 0.6s ease; }
+.ladder-row.tier .ladder-bar { background: #8fbfb5; }
+.ladder-row.deal .ladder-bar { background: var(--accent); }
+.ladder-value { font-family: var(--serif); font-size: 1.1rem; font-weight: 600; white-space: nowrap; text-align: right; min-width: 6.5rem; }
+.ladder-row.deal .ladder-value { color: var(--accent); }
+.delta { font: 600 0.75rem var(--sans); color: var(--ok); margin-left: 0.4rem; }
+.facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; font-size: 0.9rem; color: #4a463f; }
+.facts li { padding: 0.55rem 0.75rem; background: #faf8f3; border: 1px solid var(--line); border-radius: 10px; }
+
+/* Merchant console: pricing agent and payee */
+.draft-note:not(:empty) { margin-top: 0.7rem; }
+.draft-note .market { margin-top: 0.5rem; }
+.payee-list { display: grid; gap: 0.6rem; }
+.payee-row { display: grid; grid-template-columns: minmax(8rem, 14rem) 1fr auto; gap: 0.75rem; align-items: center; }
+.payee-row input { padding: 0.45rem 0.6rem; font-size: 0.92rem; }
+
 /* Merchant console */
 .merchant-root h1 { font-size: 2.1rem; }
 .console-grid { display: grid; gap: 1.5rem; }
@@ -190,12 +237,24 @@ table.data input { padding: 0.4rem 0.5rem; font-size: 0.9rem; min-width: 70px; }
   .topbar nav a { font-size: 0.88rem; }
 }
 
+@media (max-width: 1100px) and (min-width: 901px) {
+  .how { grid-template-columns: repeat(2, 1fr); }
+}
+
 @media (max-width: 900px) {
   .hero, .quorum-layout { grid-template-columns: 1fr; }
   .quorum-side { position: static; }
   .how { grid-template-columns: 1fr; }
+  .ladder-row { grid-template-columns: 1fr auto; }
+  .ladder-track { grid-column: 1 / -1; order: 3; }
+  .payee-row { grid-template-columns: 1fr; }
   .product-head { grid-template-columns: 1fr; }
   .product-head .art { aspect-ratio: 16 / 9; }
   .stats { grid-template-columns: repeat(3, 1fr); }
   .offer-form { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble, .live-dot, .dots i { animation: none; }
+  .progress-fill, .ladder-bar { transition: none; }
 }
