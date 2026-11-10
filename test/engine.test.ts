@@ -71,7 +71,9 @@ test('late buyers join a closed group at the final price; reaching a cheaper tie
   let v = quorumView(getQuorum(q.id)!);
   assert.equal(v.lateJoin.open, true);
   assert.equal(v.lateJoin.price, price);
-  assert.deepEqual(v.lateJoin.nextDrop, price > 80 ? { needed: 2, price: 80, refundEach: Math.round((price - 80) * 100) / 100 } : null);
+  // At 5 buyers the public price falls from 90 to 80, so the deal falls by 10 too, but never below the floor (78).
+  const target = Math.max(78, price - 10);
+  assert.deepEqual(v.lateJoin.nextDrop, target < price ? { needed: 2, price: target, refundEach: Math.round((price - target) * 100) / 100 } : null);
 
   // First late buyer: authorizes exactly the final price and is captured at once. No tier change yet.
   const late1 = await startCheckout(q.id, { email: 'late1@example.com', provider: 'mock' });
@@ -83,18 +85,18 @@ test('late buyers join a closed group at the final price; reaching a cheaper tie
   assert.equal(c1.captured_amount, price);
   assert.equal(getQuorum(q.id)!.final_price, price);
 
-  // Second late buyer makes 5: the $80 tier applies and all five end up paying 80.
+  // Second late buyer makes 5: the cheaper tier applies and all five end up paying the same lower price.
   await addSimulatedBuyer(q.id, 'late2@example.com');
   v = quorumView(getQuorum(q.id)!);
-  assert.equal(v.finalPrice, 80);
+  assert.equal(v.finalPrice, target);
   assert.equal(v.negotiatedPrice, price);
   const paid = v.commitments.filter((c) => c.status === 'captured');
   assert.equal(paid.length, 5);
-  assert.ok(paid.every((c) => c.paid === 80), JSON.stringify(paid.map((c) => c.paid)));
-  if (price > 80) {
+  assert.ok(paid.every((c) => c.paid === target), JSON.stringify(paid.map((c) => c.paid)));
+  if (target < price) {
     const refunds = all<{ amount: number }>("SELECT amount FROM mock_paypal WHERE kind = 'refund'");
     assert.equal(refunds.length, 5);
-    assert.equal(v.priceExplain.refundedTotal, Math.round((price - 80) * 5 * 100) / 100);
+    assert.equal(v.priceExplain.refundedTotal, Math.round((price - target) * 5 * 100) / 100);
   }
   // Running the drop again refunds nothing more.
   assert.equal(await applyPriceDrop(q.id), null);

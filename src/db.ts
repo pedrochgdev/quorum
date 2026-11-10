@@ -198,4 +198,5 @@ function migrate(d: DatabaseSync) {
   addColumn('commitments', 'lang', "TEXT NOT NULL DEFAULT 'en'");
   addColumn('quorums', 'late_until', 'TEXT'); // late joins accepted until this time
   addColumn('quorums', 'negotiated_price', 'REAL'); // price agreed by the agents, before any later price drop
+  addColumn('quorums', 'negotiated_tier', 'REAL'); // public tier price when the agents agreed
 }

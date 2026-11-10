@@ -132,11 +132,12 @@ try {
   const lateAuth = await call('POST', `/api/quorums/${groupA}/authorize`, { orderId: lateCo.json.orderId });
   const ql = lateAuth.json.quorum;
   check(lateAuth.status === 200 && lateAuth.json.status === 'captured', 'late buyer is captured at once', lateAuth.json);
-  const expected = Math.min(qa.finalPrice, 169);
+  // The public price falls $10 (179 → 169), so the deal falls $10 too, but never below the merchant floor (160).
+  const expected = Math.max(160, qa.finalPrice - 10);
   const paidNow = ql.commitments.filter((c: any) => c.status === 'captured');
-  check(paidNow.length === 8 && ql.finalPrice === expected && paidNow.every((c: any) => c.paid === expected), `8 buyers reach the $169 tier: everyone ends at $${expected}`, paidNow.map((c: any) => c.paid));
+  check(paidNow.length === 8 && ql.finalPrice === expected && paidNow.every((c: any) => c.paid === expected), `8 buyers reach the next tier: everyone ends at $${expected}`, paidNow.map((c: any) => c.paid));
   const refunded = paidNow.filter((c: any) => c.refunded > 0).length;
-  check(qa.finalPrice > 169 ? refunded === 8 : refunded === 0, `earlier buyers refunded the difference through PayPal (${refunded} refunds)`, paidNow.map((c: any) => c.refunded));
+  check(expected < qa.finalPrice ? refunded === 8 : refunded === 0, `earlier buyers refunded the difference through PayPal (${refunded} refunds)`, paidNow.map((c: any) => c.refunded));
 
   console.log('Leave a group (void)');
   const kettleQ = (await call('GET', '/api/quorums')).json.quorums.find((q: any) => q.status === 'open' && /kettle/i.test(q.product.title));

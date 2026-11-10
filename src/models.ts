@@ -1,6 +1,6 @@
 // Typed data access and the "view" objects the API and pages render.
 import { all, get, run } from './db.ts';
-import { growthMath, minMembers, normalizeTiers, priceFor, type Tier } from './pricing.ts';
+import { droppedPrice, growthMath, minMembers, normalizeTiers, priceFor, type Tier } from './pricing.ts';
 import { round2 } from './util.ts';
 import { newId, nowIso, safeJson } from './util.ts';
 
@@ -40,6 +40,7 @@ export type Quorum = {
   closed_at: string | null;
   late_until: string | null;
   negotiated_price: number | null;
+  negotiated_tier: number | null;
 };
 
 export type Intent = {
@@ -178,9 +179,12 @@ export function quorumView(q: Quorum) {
   let nextDrop: { needed: number; price: number; refundEach: number } | null = null;
   if (lateOpen) {
     const paid = commitments.filter((c) => c.status === 'captured').length;
-    const better = tiers.find((t) => t.min > paid && Math.max(product.floor_price, t.price) < q.final_price!);
+    const negotiated = q.negotiated_price ?? q.final_price!;
+    const tierAtDeal = q.negotiated_tier ?? tierPrice;
+    const priceAt = (t: Tier) => droppedPrice(negotiated, tierAtDeal, t.price, product.floor_price);
+    const better = tiers.find((t) => t.min > paid && priceAt(t) < q.final_price!);
     if (better) {
-      const price = round2(Math.max(product.floor_price, better.price));
+      const price = priceAt(better);
       nextDrop = { needed: better.min - paid, price, refundEach: round2(q.final_price! - price) };
     }
   }

@@ -21,7 +21,7 @@ import {
   type Quorum,
 } from './models.ts';
 import { copy, notify } from './notify.ts';
-import { authorizationAmount, priceFor } from './pricing.ts';
+import { authorizationAmount, droppedPrice, priceFor } from './pricing.ts';
 import { checkoutProvider, mockPayPal, providerFor, PayPalError } from './paypal/index.ts';
 import { openMerchantToolkit } from './paypal/merchant-tools.ts';
 import { dealBounds, negotiate } from './ai/negotiate.ts';
@@ -284,7 +284,7 @@ async function settleQuorumOnce(quorumId: string, opts: { force?: boolean }): Pr
       JSON.stringify(result.turns), finalPrice, 'agreed', result.engine, negId,
     );
     logAgent('negotiation', q.id, `agreed ${finalPrice}`, `Tier price ${tierPrice}, floor kept private, ${result.turns.length} turns`, result.engine);
-    run("UPDATE quorums SET final_price = ?, negotiated_price = ?, status = 'settling' WHERE id = ?", finalPrice, finalPrice, q.id);
+    run("UPDATE quorums SET final_price = ?, negotiated_price = ?, negotiated_tier = ?, status = 'settling' WHERE id = ?", finalPrice, finalPrice, tierPrice, q.id);
     publish(q.id);
   }
 
@@ -366,15 +366,17 @@ async function captureLateJoin(c: Commitment, q: Quorum, product: Product) {
 
 /**
  * Price-drop guarantee. When late buyers push a closed group into a cheaper
- * public tier, everyone already charged gets the difference back through
- * PayPal's refund API. The new price never goes below the merchant's floor.
+ * public tier, the price falls by as much as the public price fell, and
+ * everyone already charged gets the difference back through PayPal's refund
+ * API. The new price never goes below the merchant's floor.
  */
 export async function applyPriceDrop(quorumId: string): Promise<{ price: number; refunds: number; total: number } | null> {
   const q = getQuorum(quorumId);
   if (!q || q.status !== 'closed' || q.final_price === null) return null;
   const product = getProduct(q.product_id)!;
   const paid = commitmentsFor(q.id).filter((c) => c.status === 'captured' && c.capture_id);
-  const target = round2(Math.max(product.floor_price, priceFor(tiersOf(product), paid.length)));
+  const tierNow = priceFor(tiersOf(product), paid.length);
+  const target = droppedPrice(q.negotiated_price ?? q.final_price, q.negotiated_tier ?? tierNow, tierNow, product.floor_price);
   if (target >= q.final_price) return null;
   let refunds = 0;
   let total = 0;

@@ -52,6 +52,17 @@ export function growthMath(tiers: Tier[], members: number) {
 }
 
 /**
+ * Price-drop rule for a closed group that keeps growing. The agents agreed on
+ * a price while a given public tier applied. When late buyers reach a cheaper
+ * tier, the price falls by the same amount the public price fell, and never
+ * below the merchant's floor.
+ */
+export function droppedPrice(negotiated: number, tierAtDeal: number, tierNow: number, floor: number): number {
+  const drop = Math.max(0, tierAtDeal - tierNow);
+  return round2(Math.max(floor, negotiated - drop));
+}
+
+/**
  * The amount we ask PayPal to authorize. It is the list price, capped by the
  * buyer's own maximum, but never below what the goal tier requires.
  */

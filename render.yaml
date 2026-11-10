@@ -30,10 +30,18 @@ services:
         sync: false
       - key: CHANNEL3_API_KEY
         sync: false
+      - key: RESEND_API_KEY
+        sync: false # optional: email buyer notifications
       - key: CRON_SECRET
         generateValue: true
+      - key: MERCHANT_TOKEN
+        sync: false # optional: require a token on the merchant console API
+      - key: LATE_JOIN_HOURS
+        value: "24"
+      - key: PAYPAL_MCP
+        value: "on" # the merchant agent reads PayPal through PayPal's remote MCP server
       - key: DEMO_ADMIN
-        value: "false"
+        value: "true" # demo controls on group pages; set to "false" outside judging"
 
   - type: cron
     name: quorum-settle

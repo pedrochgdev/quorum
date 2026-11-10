@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { droppedPrice } from '../src/pricing.ts';
 import { authorizationAmount, growthMath, minMembers, nextTier, normalizeTiers, priceFor } from '../src/pricing.ts';
 
 const tiers = normalizeTiers([{ min: 5, price: 179 }, { min: 8, price: 169 }], 199);
@@ -39,4 +40,13 @@ test('authorizationAmount: list price, capped by buyer max, refused below the gr
   assert.equal(authorizationAmount(tiers, 185), 185);
   assert.equal(authorizationAmount(tiers, 179), 179);
   assert.equal(authorizationAmount(tiers, 150), null);
+});
+
+test('droppedPrice: the deal falls as much as the public price, never below the floor', () => {
+  assert.equal(droppedPrice(170, 179, 169, 160), 160); // 170 - 10 = 160
+  assert.equal(droppedPrice(175, 179, 169, 160), 165);
+  assert.equal(droppedPrice(163, 179, 169, 160), 160); // clamped at the floor
+  assert.equal(droppedPrice(160, 179, 169, 160), 160); // already at the floor: no drop
+  assert.equal(droppedPrice(170, 179, 179, 160), 170); // same tier: no drop
+  assert.equal(droppedPrice(170, 169, 179, 160), 170); // a tier can never push the price up
 });
