@@ -343,7 +343,12 @@ async function settleQuorumOnce(quorumId: string, opts: { force?: boolean }): Pr
 /** A late buyer has no waiting period: authorize and capture the final price in one go. */
 async function captureLateJoin(c: Commitment, q: Quorum, product: Product) {
   const provider = providerFor(c.provider);
-  const amount = round2(Math.min(q.final_price!, c.authorized_amount));
+  // If this buyer is the one who reaches a cheaper tier, charge them the new price straight away
+  // (capturing less than authorized) instead of charging the old price and refunding the difference.
+  const paidAfter = commitmentsFor(q.id).filter((x) => x.status === 'captured').length + 1;
+  const tierAfter = priceFor(tiersOf(product), paidAfter);
+  const priceAfter = droppedPrice(q.negotiated_price ?? q.final_price!, q.negotiated_tier ?? tierAfter, tierAfter, product.floor_price);
+  const amount = round2(Math.min(q.final_price!, priceAfter, c.authorized_amount));
   let cap;
   try {
     cap = await provider.captureAuthorization(c.authorization_id!, amount, config.paypal.currency, `cap-${c.id}`);

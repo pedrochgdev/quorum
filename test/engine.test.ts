@@ -94,9 +94,11 @@ test('late buyers join a closed group at the final price; reaching a cheaper tie
   assert.equal(paid.length, 5);
   assert.ok(paid.every((c) => c.paid === target), JSON.stringify(paid.map((c) => c.paid)));
   if (target < price) {
+    // The buyer who triggered the drop was charged the new price directly; the four before them were refunded.
     const refunds = all<{ amount: number }>("SELECT amount FROM mock_paypal WHERE kind = 'refund'");
-    assert.equal(refunds.length, 5);
-    assert.equal(v.priceExplain.refundedTotal, Math.round((price - target) * 5 * 100) / 100);
+    assert.equal(refunds.length, 4);
+    assert.equal(v.priceExplain.refundedTotal, Math.round((price - target) * 4 * 100) / 100);
+    assert.equal(paid.find((c) => c.name === 'Late2')!.refunded, 0);
   }
   // Running the drop again refunds nothing more.
   assert.equal(await applyPriceDrop(q.id), null);

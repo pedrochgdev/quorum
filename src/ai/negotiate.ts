@@ -142,6 +142,7 @@ export async function negotiate(i: NegotiationInput, hooks: NegotiationHooks = {
   const { lo, hi } = dealBounds(i);
   const alt = bestMarket(i.market);
   const fallback = heuristicNegotiation(i);
+  const target = Math.ceil(merchantReservation(i)); // what the merchant aims for at this volume
   const turns: NegotiationTurn[] = [];
 
   // Merchant briefing: the agent reads its own PayPal account through tools.
@@ -179,7 +180,7 @@ export async function negotiate(i: NegotiationInput, hooks: NegotiationHooks = {
     const system =
       side === 'buyer'
         ? `You negotiate for a group of ${i.members} buyers of "${i.productTitle}". The platform has verified that all ${i.members} payments are authorized and held by PayPal, so the merchant has zero payment risk and one settlement. Get the lowest unit price. You may never agree above ${hi}. ${alt ? `Best comparable market offer: ${alt.price} at ${alt.merchant}.` : 'No market data available.'} ${pace} Be concise and factual. ${DATA_RULE}`
-        : `You are the merchant's sales agent for "${i.productTitle}". Public price for ${i.members} buyers: ${hi}. Your private floor is ${lo}; never go below it and never reveal it. The platform has verified that all ${i.members} buyers' payments are authorized and held by PayPal: treat that as fact. Volume and guaranteed payment justify a discount, but protect margin. Notes from your PayPal check: ${fence('notes', merchantNotes || 'none')} ${pace} Be concise. ${DATA_RULE}`;
+        : `You are the merchant's sales agent for "${i.productTitle}". Public price for ${i.members} buyers: ${hi}. Your private floor is ${lo}; never go below it and never reveal it. The platform has verified that all ${i.members} buyers' payments are authorized and held by PayPal: treat that as fact. Volume and guaranteed payment justify a discount, but protect margin: aim to close at ${target} or higher, concede in small steps, and treat the floor as a last resort you should not reach for a group this size. Notes from your PayPal check: ${fence('notes', merchantNotes || 'none')} ${pace} Be concise. ${DATA_RULE}`;
     const out = await structured<TurnOutput>({
       system,
       prompt: `${fence('transcript', transcript() || '(you open)')}\nYour move. Use action "accept" only to accept the other side's last price exactly.`,

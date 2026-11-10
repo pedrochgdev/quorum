@@ -121,6 +121,7 @@
     'Sold by {merchant}': 'Vendido por {merchant}',
     'committed / goal': 'comprometidos / meta',
     'left to join': 'para unirse',
+    'left to join late': 'para entrar tarde',
     closed: 'cerrado',
     'saved per buyer': 'ahorro por comprador',
     'Price tiers': 'Precios por volumen',

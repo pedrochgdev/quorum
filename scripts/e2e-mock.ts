@@ -137,7 +137,7 @@ try {
   const paidNow = ql.commitments.filter((c: any) => c.status === 'captured');
   check(paidNow.length === 8 && ql.finalPrice === expected && paidNow.every((c: any) => c.paid === expected), `8 buyers reach the next tier: everyone ends at $${expected}`, paidNow.map((c: any) => c.paid));
   const refunded = paidNow.filter((c: any) => c.refunded > 0).length;
-  check(expected < qa.finalPrice ? refunded === 8 : refunded === 0, `earlier buyers refunded the difference through PayPal (${refunded} refunds)`, paidNow.map((c: any) => c.refunded));
+  check(expected < qa.finalPrice ? refunded === 7 && ql.commitments.find((c: any) => c.late).refunded === 0 : refunded === 0, `earlier buyers refunded the difference through PayPal (${refunded} refunds)`, paidNow.map((c: any) => c.refunded));
 
   console.log('Leave a group (void)');
   const kettleQ = (await call('GET', '/api/quorums')).json.quorums.find((q: any) => q.status === 'open' && /kettle/i.test(q.product.title));

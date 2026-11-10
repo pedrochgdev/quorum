@@ -204,7 +204,13 @@
         ${progressBar(q, false)}
         <div class="stats">
           <div class="stat"><b>${q.members} / ${q.minMembers}</b><span>${t('committed / goal')}</span></div>
-          <div class="stat"><b class="countdown" data-closes="${esc(q.closesAt)}">${q.status === 'open' ? timeLeft(q.closesAt) : '—'}</b><span>${q.status === 'open' ? t('left to join') : t('closed')}</span></div>
+          <div class="stat">${
+            q.status === 'open'
+              ? `<b class="countdown" data-closes="${esc(q.closesAt)}">${timeLeft(q.closesAt)}</b><span>${t('left to join')}</span>`
+              : q.lateJoin.open
+                ? `<b>${timeLeft(q.lateJoin.until)}</b><span>${t('left to join late')}</span>`
+                : `<b>${esc((q.closedAt || '').slice(0, 10)) || '—'}</b><span>${t('closed')}</span>`
+          }</div>
           <div class="stat"><b>${saving > 0 ? money(saving) : '—'}</b><span>${t('saved per buyer')}</span></div>
         </div>
       </section>
