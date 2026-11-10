@@ -20,7 +20,10 @@ function loadDotEnv(path: string) {
     if (process.env[key] === undefined) process.env[key] = value;
   }
 }
-loadDotEnv(resolve(process.cwd(), '.env'));
+// Tests must never pick up real keys: `node --test` sets NODE_TEST_CONTEXT, and the
+// end-to-end scripts start the server with QUORUM_ENV_FILE=none.
+const envFile = process.env.QUORUM_ENV_FILE ?? '.env';
+if (envFile !== 'none' && !process.env.NODE_TEST_CONTEXT) loadDotEnv(resolve(process.cwd(), envFile));
 
 const env = (k: string, d = '') => (process.env[k] ?? d).trim();
 const num = (k: string, d: number) => {
@@ -50,6 +53,11 @@ export const config = {
     clientSecret: paypalSecret,
     webhookId: env('PAYPAL_WEBHOOK_ID'),
     currency: env('CURRENCY', 'USD'),
+    // The merchant agent reads PayPal through PayPal's own remote MCP server. "off" uses the REST API directly.
+    mcp: env('PAYPAL_MCP', 'on').toLowerCase() !== 'off',
+    // Send each order to the merchant's own PayPal account (purchase_units[].payee). Off by default:
+    // capturing for another account needs that account's permission, so verify it on your sandbox first.
+    payeeRouting: bool('PAYPAL_PAYEE_ROUTING', false),
   },
 
   anthropic: {
@@ -75,6 +83,14 @@ export const config = {
     settleIntervalSeconds: num('SETTLE_INTERVAL_SECONDS', 30),
     maxNegotiationTurns: num('MAX_NEGOTIATION_TURNS', 6),
     referralReward: num('REFERRAL_REWARD', 0),
+    // After a group closes, late buyers can still join at the final price for this long.
+    // If they push the group into a cheaper tier, everyone already charged gets the difference refunded.
+    lateJoinHours: num('LATE_JOIN_HOURS', 24),
+  },
+
+  notify: {
+    resendApiKey: env('RESEND_API_KEY'),
+    from: env('NOTIFY_FROM', 'Quorum <onboarding@resend.dev>'),
   },
 
   demoAdmin: bool('DEMO_ADMIN', false),
@@ -91,5 +107,7 @@ export function describeModes() {
     ai: hasLLM() ? `anthropic:${config.anthropic.model}` : 'heuristic (no ANTHROPIC_API_KEY)',
     embeddings: config.openaiEmbeddings.apiKey ? `openai:${config.openaiEmbeddings.model}` : 'local hashed n-grams',
     channel3: hasChannel3() ? 'live' : 'off (no CHANNEL3_API_KEY)',
+    merchantTools: config.paypal.mode === 'mock' ? 'simulated ledger' : config.paypal.mcp ? 'PayPal MCP server' : 'PayPal REST API',
+    email: config.notify.resendApiKey ? 'resend' : 'outbox only (no RESEND_API_KEY)',
   };
 }
