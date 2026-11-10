@@ -74,16 +74,19 @@
   const negotiating = (q) => q.status === 'negotiating' || (q.negotiation && q.negotiation.status !== 'agreed');
   const revealPending = (q) => Boolean(q.negotiation) && revealed >= 0 && revealed < q.negotiation.turns.length;
 
+  // Decided before the first paint of a negotiation, so the result never flashes ahead of the transcript.
+  function initReveal(q) {
+    if (revealed !== -1 || !q.negotiation) return;
+    // A negotiation that finished a while ago is shown at once; a fresh one plays turn by turn.
+    const old = q.negotiation.status === 'agreed' && q.closedAt && Date.now() - Date.parse(q.closedAt) > 60_000;
+    revealed = old ? q.negotiation.turns.length : 0;
+  }
+
   function scheduleReveal() {
     if (revealTimer || !state) return;
     const q = state.quorum;
     if (!q.negotiation) return;
     const turns = q.negotiation.turns;
-    if (revealed === -1) {
-      // An old, finished negotiation is shown at once; a fresh one plays turn by turn.
-      const old = q.negotiation.status === 'agreed' && q.closedAt && Date.now() - Date.parse(q.closedAt) > 60_000;
-      revealed = old ? turns.length : 0;
-    }
     if (revealed >= turns.length) return;
     revealTimer = setTimeout(() => {
       revealTimer = null;
@@ -164,6 +167,7 @@
   // ---- Main column -------------------------------------------------------------------
   function render() {
     const q = state.quorum;
+    initReveal(q);
     const me = mine();
     const settled = q.finalPrice !== null && !revealPending(q) && !negotiating(q);
     const shownPrice = settled ? q.finalPrice : q.goalReached || q.status !== 'open' ? q.currentPrice : goalPrice(q);
