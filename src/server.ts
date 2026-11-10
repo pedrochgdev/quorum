@@ -18,7 +18,8 @@ route('GET', '/merchant', ({ res }) => sendHtml(res, 200, merchantPage()));
 route('GET', '/mock-paypal/checkout', ({ res, url }) => {
   const order = url.searchParams.get('order') ?? '';
   const row = get<{ amount: number }>("SELECT amount FROM mock_paypal WHERE id = ? AND kind = 'order'", order);
-  sendHtml(res, row ? 200 : 404, mockCheckoutPage(order, row?.amount ?? null));
+  const owner = get<{ quorum_id: string }>('SELECT quorum_id FROM commitments WHERE paypal_order_id = ?', order);
+  sendHtml(res, row ? 200 : 404, mockCheckoutPage(order, row?.amount ?? null, owner?.quorum_id ?? null));
 });
 
 function errorStatus(err: unknown): { status: number; message: string } {

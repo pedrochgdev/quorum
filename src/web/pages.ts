@@ -102,7 +102,8 @@ export function merchantPage() {
 }
 
 /** Stand-in for the PayPal approval step when PAYPAL_MODE=mock. Clearly labelled as a simulation. */
-export function mockCheckoutPage(orderId: string, amount: number | null) {
+export function mockCheckoutPage(orderId: string, amount: number | null, quorumId: string | null = null) {
+  const back = quorumId ? `/q/${encodeURIComponent(quorumId)}?token=${encodeURIComponent(orderId)}` : '/';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Payment simulation</title><link rel="stylesheet" href="/styles.css"></head>
 <body class="sim-body">
@@ -120,16 +121,17 @@ export function mockCheckoutPage(orderId: string, amount: number | null) {
   <p class="muted small">Tip: an email containing <code>+decline</code> simulates a card that fails at capture.</p>
 </div>
 <script>
-const orderId = ${JSON.stringify(orderId)};
+const orderId = ${JSON.stringify(orderId).replaceAll('<', '\\u003c')};
+const back = ${JSON.stringify(back).replaceAll('<', '\\u003c')};
 document.getElementById('sim-approve').onclick = async () => {
   const email = document.getElementById('sim-email').value;
   const r = await fetch('/api/mock-paypal/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId, email }) });
   if (!r.ok) { alert('Approval failed'); return; }
   if (window.opener) { window.opener.postMessage({ type: 'quorum-mock-approved', orderId }, location.origin); window.close(); }
-  else { history.back(); }
+  else { location.href = back; } // opened from a link (for example by an agent): return like PayPal's redirect does
 };
 document.getElementById('sim-cancel').onclick = () => {
-  if (window.opener) { window.opener.postMessage({ type: 'quorum-mock-cancelled', orderId }, location.origin); window.close(); } else { history.back(); }
+  if (window.opener) { window.opener.postMessage({ type: 'quorum-mock-cancelled', orderId }, location.origin); window.close(); } else { location.href = back.split('?')[0]; }
 };
 </script>
 </body></html>`;

@@ -1,6 +1,8 @@
 // JSON API.
 import { config, describeModes, isMockPayPal } from './config.ts';
 import { all, run } from './db.ts';
+import { subscribe } from './live.ts';
+import { recentNotifications } from './notify.ts';
 import { agentLogFor, recentEvents } from './events.ts';
 import { HttpError, readJson, rateLimit, route, sendJson, type Ctx } from './http.ts';
 import {
@@ -8,19 +10,24 @@ import {
   createQuorum,
   getCommitment,
   getProduct,
+  getMerchant,
   getQuorum,
   listMerchants,
   listProducts,
   listQuorums,
   quorumView,
+  setMerchantPayPalEmail,
   tiersOf,
+  type Intent,
   type Product,
 } from './models.ts';
 import { normalizeTiers, type Tier } from './pricing.ts';
-import { addSimulatedBuyer, completeAuthorization, settleDue, settleQuorum, startCheckout } from './engine.ts';
+import { addSimulatedBuyer, commitmentForToken, completeAuthorization, settleDue, settleQuorum, startCheckout, withdrawCommitment } from './engine.ts';
 import { attachWaitingIntents, CATEGORIES, demandBoard, ensureProductEmbedding, submitIntent } from './ai/intent.ts';
 import { inviteFor } from './ai/growth.ts';
-import { marketSearch } from './ai/catalog.ts';
+import { marketFor } from './ai/catalog.ts';
+import { usage as llmUsage } from './ai/llm.ts';
+import { draftOffer } from './ai/offer.ts';
 import { mockPayPal } from './paypal/index.ts';
 import { handlePayPalWebhook } from './paypal/webhooks.ts';
 import { isEmail, nowIso } from './util.ts';
@@ -39,6 +46,16 @@ function requireMerchant(ctx: Ctx) {
   if (given !== token) throw new HttpError(401, 'Merchant token required');
 }
 
+const langOf = (v: unknown) => (v === 'es' ? 'es' : 'en');
+
+/** What a group page shows; admins also see the notification outbox. */
+const quorumPayload = (id: string, admin: boolean) => ({
+  quorum: quorumView(getQuorum(id)!),
+  agentLog: agentLogFor(id),
+  admin,
+  notifications: admin ? recentNotifications(id, 12) : [],
+});
+
 const quorumOr404 = (id: string) => {
   const q = getQuorum(id);
   if (!q) throw new HttpError(404, 'Group not found');
@@ -46,15 +63,15 @@ const quorumOr404 = (id: string) => {
 };
 
 export function registerApi() {
-  route('GET', '/api/health', ({ res }) => sendJson(res, 200, { ok: true, modes: describeModes(), time: nowIso() }));
+  route('GET', '/api/health', ({ res }) => sendJson(res, 200, { ok: true, modes: describeModes(), llmUsage, time: nowIso() }));
 
   route('POST', '/api/intents', async (ctx) => {
     rateLimit(ctx.req, 'intents', 20);
-    const body = await readJson<{ text?: string; email?: string }>(ctx.req);
+    const body = await readJson<{ text?: string; email?: string; lang?: string }>(ctx.req);
     const text = String(body.text ?? '').trim();
     if (text.length < 3 || text.length > 500) throw new HttpError(400, 'Describe what you want in 3 to 500 characters');
     const email = body.email && isEmail(body.email) ? body.email.trim() : null;
-    const result = await submitIntent(text, email);
+    const result = await submitIntent(text, email, langOf(body.lang));
     sendJson(ctx.res, 200, {
       intentId: result.intent.id,
       outcome: result.outcome,
@@ -72,15 +89,35 @@ export function registerApi() {
 
   route('GET', '/api/quorums/:id', (ctx) => {
     const q = quorumOr404(ctx.params.id);
-    sendJson(ctx.res, 200, { quorum: quorumView(q), agentLog: agentLogFor(q.id), admin: Boolean(isAdmin(ctx)) });
+    sendJson(ctx.res, 200, quorumPayload(q.id, Boolean(isAdmin(ctx))));
+  });
+
+  // Live updates (Server-Sent Events): members joining, each negotiation turn, each capture.
+  route('GET', '/api/quorums/:id/stream', (ctx) => {
+    const q = quorumOr404(ctx.params.id);
+    const admin = Boolean(isAdmin(ctx));
+    ctx.res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    const push = () => ctx.res.write(`data: ${JSON.stringify(quorumPayload(q.id, admin))}\n\n`);
+    push();
+    const unsubscribe = subscribe(q.id, push);
+    const beat = setInterval(() => ctx.res.write(': keep-alive\n\n'), 20_000);
+    ctx.req.on('close', () => {
+      clearInterval(beat);
+      unsubscribe();
+    });
   });
 
   route('POST', '/api/quorums/:id/checkout', async (ctx) => {
     rateLimit(ctx.req, 'checkout', 30);
     quorumOr404(ctx.params.id);
-    const body = await readJson<{ email?: string; intentId?: string; ref?: string }>(ctx.req);
+    const body = await readJson<{ email?: string; intentId?: string; ref?: string; lang?: string }>(ctx.req);
     if (!isEmail(body.email)) throw new HttpError(400, 'Enter a valid email so we can tell you when the group closes');
-    const out = await startCheckout(ctx.params.id, { email: body.email, intentId: body.intentId || null, referrerId: body.ref || null });
+    const out = await startCheckout(ctx.params.id, { email: body.email, intentId: body.intentId || null, referrerId: body.ref || null, lang: langOf(body.lang) });
     sendJson(ctx.res, 200, out);
   });
 
@@ -88,15 +125,29 @@ export function registerApi() {
     const body = await readJson<{ orderId?: string }>(ctx.req);
     if (!body.orderId) throw new HttpError(400, 'orderId is required');
     const c = await completeAuthorization(ctx.params.id, body.orderId);
-    sendJson(ctx.res, 200, { commitmentId: c.id, status: c.status, quorum: quorumView(getQuorum(ctx.params.id)!) });
+    // The order id is known only to the buyer who created it, so it is safe to hand back their token here.
+    sendJson(ctx.res, 200, { commitmentId: c.id, token: c.token, status: c.status, quorum: quorumView(getQuorum(ctx.params.id)!) });
+  });
+
+  // Leave an open group: PayPal voids the authorization.
+  route('POST', '/api/commitments/:id/withdraw', async (ctx) => {
+    rateLimit(ctx.req, 'withdraw', 20);
+    const body = await readJson<{ token?: string }>(ctx.req);
+    const c = await withdrawCommitment(ctx.params.id, String(body.token ?? ''));
+    sendJson(ctx.res, 200, { commitmentId: c.id, status: c.status, quorum: quorumView(getQuorum(c.quorum_id)!) });
+  });
+
+  route('GET', '/api/commitments/:id', (ctx) => {
+    const c = commitmentForToken(ctx.params.id, ctx.url.searchParams.get('token') ?? '');
+    sendJson(ctx.res, 200, { commitmentId: c.id, quorumId: c.quorum_id, status: c.status, authorized: c.authorized_amount, captured: c.captured_amount, refunded: c.refunded_amount });
   });
 
   route('POST', '/api/quorums/:id/invite', async (ctx) => {
     rateLimit(ctx.req, 'invite', 20);
     const q = quorumOr404(ctx.params.id);
-    const body = await readJson<{ commitmentId?: string }>(ctx.req);
+    const body = await readJson<{ commitmentId?: string; lang?: string }>(ctx.req);
     const c = body.commitmentId ? getCommitment(body.commitmentId) : undefined;
-    sendJson(ctx.res, 200, await inviteFor(quorumView(q), c && c.quorum_id === q.id ? c.id : null));
+    sendJson(ctx.res, 200, await inviteFor(quorumView(q), c && c.quorum_id === q.id ? c.id : null, langOf(body.lang)));
   });
 
   // ---- Admin / demo controls -------------------------------------------------
@@ -149,7 +200,34 @@ export function registerApi() {
       quorums: listQuorums().slice(0, 50).map(quorumView),
       demand: demandBoard(),
       categories: CATEGORIES,
+      payeeRouting: config.paypal.payeeRouting,
+      notifications: recentNotifications(null, 15),
     });
+  });
+
+  // The merchant's own PayPal account: orders name it as the payee when PAYPAL_PAYEE_ROUTING is on.
+  route('PUT', '/api/merchant/merchants/:id', async (ctx) => {
+    requireMerchant(ctx);
+    if (!getMerchant(ctx.params.id)) throw new HttpError(404, 'Merchant not found');
+    const b = await readJson<{ paypalEmail?: string }>(ctx.req);
+    const email = String(b.paypalEmail ?? '').trim();
+    if (email && !isEmail(email)) throw new HttpError(400, 'Enter a valid PayPal email, or leave it empty');
+    setMerchantPayPalEmail(ctx.params.id, email || null);
+    sendJson(ctx.res, 200, { merchant: getMerchant(ctx.params.id) });
+  });
+
+  // Pricing agent: draft a group offer for one cluster of unmet demand.
+  route('POST', '/api/merchant/demand/draft', async (ctx) => {
+    requireMerchant(ctx);
+    rateLimit(ctx.req, 'draft', 12);
+    const b = await readJson<{ intentIds?: string[] }>(ctx.req);
+    const ids = new Set((Array.isArray(b.intentIds) ? b.intentIds : []).map(String));
+    const cluster = demandBoard().find((d) => d.intentIds.some((id) => ids.has(id)));
+    if (!cluster) throw new HttpError(404, 'That demand is no longer waiting');
+    const maxes = all<Pick<Intent, 'id' | 'max_price'>>("SELECT id, max_price FROM intents WHERE status = 'waiting'")
+      .filter((i) => cluster.intentIds.includes(i.id))
+      .map((i) => i.max_price);
+    sendJson(ctx.res, 200, { draft: await draftOffer(cluster, maxes) });
   });
 
   route('POST', '/api/merchant/products', async (ctx) => {
@@ -181,7 +259,7 @@ export function registerApi() {
     let attached = 0;
     if (b.openGroup) {
       const q = createQuorum(getProduct(p.id)!, Number(b.hours) > 0 ? Number(b.hours) : config.quorum.hours, `Opened by ${listMerchants().find((m) => m.id === merchantId)?.name ?? 'merchant'} from the demand board`);
-      const market = await marketSearch(p.title, { limit: 5 });
+      const market = await marketFor(p.title, p.list_price);
       run('UPDATE quorums SET market_json = ? WHERE id = ?', JSON.stringify(market), q.id);
       attached = attachWaitingIntents(q.id, getProduct(p.id)!);
       quorumId = q.id;
@@ -220,7 +298,7 @@ export function registerApi() {
     if (listQuorums('open').some((q) => q.product_id === p.id)) throw new HttpError(409, 'This product already has an open group');
     const b = await readJson<{ hours?: number }>(ctx.req);
     const q = createQuorum(p, Number(b.hours) > 0 ? Number(b.hours) : config.quorum.hours, 'Opened by the merchant');
-    run('UPDATE quorums SET market_json = ? WHERE id = ?', JSON.stringify(await marketSearch(p.title, { limit: 5 })), q.id);
+    run('UPDATE quorums SET market_json = ? WHERE id = ?', JSON.stringify(await marketFor(p.title, p.list_price)), q.id);
     const attached = attachWaitingIntents(q.id, p);
     sendJson(ctx.res, 200, { quorumId: q.id, attachedIntents: attached });
   });

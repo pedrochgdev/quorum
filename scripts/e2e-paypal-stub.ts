@@ -91,6 +91,8 @@ const env = {
   ANTHROPIC_API_KEY: '',
   CHANNEL3_API_KEY: '',
   DEMO_ADMIN: 'true',
+  QUORUM_ENV_FILE: 'none', // never read real keys from .env
+  PAYPAL_MCP: 'off',
   SETTLE_INTERVAL_SECONDS: '3600',
   REFERRAL_REWARD: '5',
 };

@@ -22,6 +22,8 @@ const env = {
   ANTHROPIC_API_KEY: process.env.E2E_USE_LLM ? process.env.ANTHROPIC_API_KEY : '',
   CHANNEL3_API_KEY: '',
   DEMO_ADMIN: 'true',
+  QUORUM_ENV_FILE: 'none', // never read real keys from .env
+  PAYPAL_MCP: 'off',
   SETTLE_INTERVAL_SECONDS: '3600',
   REFERRAL_REWARD: '5',
 };
@@ -114,6 +116,41 @@ try {
   const again = await call('POST', `/api/quorums/${groupA}/settle`);
   check(again.json.quorum.commitments.filter((c: any) => c.status === 'captured').length === 7, 'settling twice is a no-op (idempotent)');
 
+  console.log('Live updates + price explanation');
+  const sse = await fetch(`${base}/api/quorums/${groupA}/stream`);
+  const first = new TextDecoder().decode((await sse.body!.getReader().read()).value);
+  check(sse.headers.get('content-type')?.includes('text/event-stream') && first.startsWith('data: {') && first.includes('"negotiation"'), 'SSE stream sends the group state');
+  const px = qa.priceExplain;
+  check(px.listPrice === 199 && px.tierPrice === 179 && px.lowestAuthorization === 199 && px.finalPrice === qa.finalPrice, 'price explanation: list, tier, lowest authorization, final', px);
+  check(!JSON.stringify(closed.json).includes('"floor') && !JSON.stringify(closed.json).includes('token'), 'the group view exposes neither the merchant floor nor buyer tokens');
+
+  console.log('Late join + price-drop refund');
+  check(qa.lateJoin.open && qa.lateJoin.price === qa.finalPrice, 'closed group stays joinable at the final price', qa.lateJoin);
+  const lateCo = await call('POST', `/api/quorums/${groupA}/checkout`, { email: 'late@example.com' });
+  check(lateCo.status === 200 && lateCo.json.late === true && lateCo.json.amount === qa.finalPrice, 'late buyer authorizes exactly the final price', lateCo.json);
+  await call('POST', '/api/mock-paypal/approve', { orderId: lateCo.json.orderId, email: 'late@example.com' });
+  const lateAuth = await call('POST', `/api/quorums/${groupA}/authorize`, { orderId: lateCo.json.orderId });
+  const ql = lateAuth.json.quorum;
+  check(lateAuth.status === 200 && lateAuth.json.status === 'captured', 'late buyer is captured at once', lateAuth.json);
+  const expected = Math.min(qa.finalPrice, 169);
+  const paidNow = ql.commitments.filter((c: any) => c.status === 'captured');
+  check(paidNow.length === 8 && ql.finalPrice === expected && paidNow.every((c: any) => c.paid === expected), `8 buyers reach the $169 tier: everyone ends at $${expected}`, paidNow.map((c: any) => c.paid));
+  const refunded = paidNow.filter((c: any) => c.refunded > 0).length;
+  check(qa.finalPrice > 169 ? refunded === 8 : refunded === 0, `earlier buyers refunded the difference through PayPal (${refunded} refunds)`, paidNow.map((c: any) => c.refunded));
+
+  console.log('Leave a group (void)');
+  const kettleQ = (await call('GET', '/api/quorums')).json.quorums.find((q: any) => q.status === 'open' && /kettle/i.test(q.product.title));
+  const stay = await call('POST', `/api/quorums/${kettleQ.id}/checkout`, { email: 'leaver@example.com', lang: 'es' });
+  await call('POST', '/api/mock-paypal/approve', { orderId: stay.json.orderId, email: 'leaver@example.com' });
+  const stayAuth = await call('POST', `/api/quorums/${kettleQ.id}/authorize`, { orderId: stay.json.orderId });
+  check(stayAuth.json.token === stay.json.token && stayAuth.json.quorum.members === 3, 'authorize returns the buyer token');
+  const badLeave = await call('POST', `/api/commitments/${stay.json.commitmentId}/withdraw`, { token: 'nope' });
+  check(badLeave.status === 403, 'leaving needs the buyer token');
+  const leave = await call('POST', `/api/commitments/${stay.json.commitmentId}/withdraw`, { token: stay.json.token });
+  check(leave.status === 200 && leave.json.status === 'voided' && leave.json.quorum.members === 2, 'buyer leaves: authorization voided, member count drops', leave.json);
+  const outbox = (await call('GET', `/api/quorums/${kettleQ.id}`)).json.notifications;
+  check(outbox.some((n: any) => n.kind === 'left' && /Saliste/.test(n.subject)) && outbox.some((n: any) => n.kind === 'joined'), 'buyer notifications recorded, in the buyer language', outbox.map((n: any) => n.subject));
+
   console.log('Failure path: group B does not form');
   const fb = await call('POST', `/api/quorums/${groupB}/settle`);
   check(fb.json.quorum.status === 'failed', 'group B failed', fb.json.quorum?.status);
@@ -123,6 +160,12 @@ try {
   const m = await call('GET', '/api/merchant');
   const desk = m.json.demand.find((d: any) => /desk/i.test(d.label));
   check(desk && desk.count >= 3, 'standing-desk demand clustered (English + Spanish)', m.json.demand);
+  const draft = await call('POST', '/api/merchant/demand/draft', { intentIds: desk.intentIds });
+  const d = draft.json.draft;
+  check(draft.status === 200 && d.tiers[0].min <= desk.count && d.tiers[0].price <= desk.medianMax && d.listPrice > d.tiers[0].price && d.floorPrice <= d.tiers.at(-1).price, 'pricing agent drafts an offer that obeys the pricing rules', d);
+  check(d.reach >= 2 && d.rationale.length > 20, 'draft says how many waiting buyers can afford it', { reach: d.reach });
+  const payee = await call('PUT', `/api/merchant/merchants/${m.json.merchants[0].id}`, { paypalEmail: 'not-an-email' });
+  check(payee.status === 400, 'merchant PayPal email is validated');
   const created = await call('POST', '/api/merchant/products', {
     merchantId: m.json.merchants[0].id,
     title: 'Electric standing desk, dual motor',
@@ -161,10 +204,26 @@ try {
   const init = await call('POST', '/mcp', { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'e2e', version: '1' } } });
   check(init.json.result?.serverInfo?.name === 'quorum' && init.json.result.capabilities.tools, 'MCP initialize', init.json);
   const toolsList = await call('POST', '/mcp', { jsonrpc: '2.0', id: 2, method: 'tools/list' });
-  check(toolsList.json.result?.tools?.map((t: any) => t.name).join(',') === 'add_intent,list_open_quorums,get_quorum', 'MCP tools/list');
+  check(toolsList.json.result?.tools?.map((t: any) => t.name).join(',') === 'add_intent,list_open_quorums,get_quorum,join_quorum,confirm_authorization,get_commitment,leave_quorum,list_demand', 'MCP tools/list', toolsList.json.result?.tools?.map((t: any) => t.name));
   const viaAgent = await call('POST', '/mcp', { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'add_intent', arguments: { text: 'ultralight tent for two people, max $240' } } });
   const sc = viaAgent.json.result?.structuredContent;
   check(sc && sc.quorum && /tent/i.test(sc.quorum.product) && sc.approveUrl.includes('/q/'), 'external agent adds an intent and gets an approval link', viaAgent.json);
+  const tool = async (name: string, args: unknown) => (await call('POST', '/mcp', { jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name, arguments: args } })).json.result;
+  const joined = (await tool('join_quorum', { quorum_id: sc.quorum.id, email: 'agent.user@example.com', max_price: 230, intent_id: sc.intent_id })).structuredContent;
+  check(joined && joined.authorize_amount === 230 && joined.approveUrl.startsWith(base) && joined.token, 'agent starts a PayPal authorization capped by its spending limit', joined);
+  const tooEarly = await tool('confirm_authorization', { quorum_id: sc.quorum.id, order_id: joined.order_id });
+  check(tooEarly.isError === true, 'agent cannot confirm before the person approves');
+  const approvePage = await fetch(joined.approveUrl);
+  check(approvePage.status === 200 && (await approvePage.text()).includes(`/q/${sc.quorum.id}?token=`), 'approval page returns to the group like PayPal does');
+  await call('POST', '/api/mock-paypal/approve', { orderId: joined.order_id, email: 'agent.user@example.com' });
+  const confirmed = (await tool('confirm_authorization', { quorum_id: sc.quorum.id, order_id: joined.order_id })).structuredContent;
+  check(confirmed?.status === 'authorized' && confirmed.authorized === 230, 'agent confirms after approval', confirmed);
+  const mine = (await tool('get_commitment', { commitment_id: joined.commitment_id, token: joined.token })).structuredContent;
+  check(mine?.status === 'authorized', 'agent reads its own commitment');
+  const gone = (await tool('leave_quorum', { commitment_id: joined.commitment_id, token: joined.token })).structuredContent;
+  check(gone?.status === 'voided', 'agent leaves the group: hold released', gone);
+  const demandTool = (await tool('list_demand', {})).structuredContent;
+  check(Array.isArray(demandTool?.demand) && demandTool.demand.length >= 1, 'merchant agents can read the demand board');
   const notif = await fetch(`${base}/mcp`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) });
   check(notif.status === 202, 'MCP notification acknowledged with 202');
 
