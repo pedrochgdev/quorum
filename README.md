@@ -114,7 +114,7 @@ The last two need Chrome and no person: a real browser pays as a guest with a fr
 ## Submission material
 
 - [`docs/DEVPOST.md`](docs/DEVPOST.md): the text for each field of the Devpost form, including the AI tools statement and testing instructions.
-- [`docs/DEMO_VIDEO.md`](docs/DEMO_VIDEO.md): the shot-by-shot script for the demo video.
+- [`docs/DEMO_VIDEO.md`](docs/DEMO_VIDEO.md): the shot-by-shot script for the demo video. `npm run demo:record` records it automatically (real Chrome, captions, MP4 in `out/`).
 
 ## Tests
 

@@ -166,7 +166,7 @@ type Candidate = { product: Product; quorum?: Quorum; score: number };
 
 async function confirmFit(raw: string, parsed: ParsedIntent, c: Candidate, others: string[], lang = 'en') {
   const answer = await structured<{ fits: boolean; reason: string }>({
-    system: `You check whether a shopper would accept a specific product as fulfilling their request. Be strict about stated requirements. Price and deadline are checked elsewhere: do not judge them and do not mention them in the reason. ${DATA_RULE}`,
+    system: `You check whether a shopper would accept a specific product as fulfilling their request. Judge only the kind of product and its features against what the shopper asked for, and be strict about stated requirements. The reason must talk about the product and its features only: say nothing about price, budget, cost, deadlines or what was or was not evaluated. ${DATA_RULE}`,
     prompt: [
       fence('buyer_request', raw),
       fence('product', `${c.product.title}\n${c.product.description}\nKeywords: ${c.product.keywords}`),

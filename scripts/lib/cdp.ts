@@ -144,6 +144,11 @@ export class Page {
     this.targetId = targetId;
   }
 
+  /** The DevTools session id of this page (used to tell its events apart). */
+  get session() {
+    return this.sessionId;
+  }
+
   cdp<T = any>(method: string, params: unknown = {}) {
     return this.browser.send<T>(method, params, this.sessionId);
   }

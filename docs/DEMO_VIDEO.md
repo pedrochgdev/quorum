@@ -2,7 +2,19 @@
 
 The rules ask for a video under three minutes, public on YouTube, showing the project working. Judges may score from the video alone, so every claim is shown on screen, including a real sandbox payment.
 
-## Before recording
+## The quick way: record it automatically
+
+```bash
+npm run demo:record      # writes out/quorum-demo.mp4 (about 2:50, 1920×1080, captions, no audio)
+```
+
+A real Chrome goes through the product with the services in your `.env` (PayPal sandbox, Claude, Channel3): it types the request, pays in PayPal's sandbox checkout with a test card, lets the agents negotiate live, triggers the price-drop refund and shows the merchant's pricing agent. Captions are drawn on screen and ffmpeg assembles the file. It needs Chrome and ffmpeg, takes about four minutes, and the result differs slightly each time because the agents are live.
+
+Watch the file before uploading it. Upload it to YouTube as **Public** as it is, or use it as the picture and record your own voice over it with the script below.
+
+## The manual way
+
+### Before recording
 
 1. Use the deployed instance with all four services live (check the footer pills).
 2. Reset the demo so the numbers match this script: `npm run seed -- --reset`, then reload.
@@ -11,7 +23,7 @@ The rules ask for a video under three minutes, public on YouTube, showing the pr
 5. Record at 1920×1080, browser zoom 110%. No music, or music you have the rights to. Do not show other brands' logos beyond what the product itself displays.
 6. Do one silent dry run of the PayPal payment first: the card form takes a few seconds to load, and you can speed that part up when editing.
 
-## Script
+### Script
 
 | Time | On screen | Say |
 | --- | --- | --- |
@@ -24,7 +36,7 @@ The rules ask for a video under three minutes, public on YouTube, showing the pr
 | 2:15–2:35 | Merchant console. Click "Draft an offer with the pricing agent" on the standing-desk card; the form fills and the rationale shows market prices. | "Merchants see demand before they stock. Three people want a standing desk that nobody sells here. A pricing agent drafts the offer from what they would pay and live market prices from Channel3, and the merchant opens the group." |
 | 2:35–2:50 | Home page, scroll to the "For AI assistants" strip showing the `/mcp` endpoint. End on the headline. | "Quorum is also an MCP server, so any assistant can join a group for its user, with a spending limit, while only the person approves the payment. Agents coordinate. PayPal holds the money. Quorum: buy together, pay only if the group forms." |
 
-## If something goes wrong while recording
+### If something goes wrong while recording
 
 - **PayPal refuses the test card:** reload the page to get a new test card and try again; the order is created fresh each time.
 - **The negotiation looks different from the script:** that is expected with live agents. The price always lands between the merchant's floor and the public tier, which is the point to make.
