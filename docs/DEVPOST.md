@@ -94,6 +94,7 @@ Authorize-then-capture is an underused primitive: it turns commitment into somet
 4. Under "Demo controls", add two simulated buyers and press "Close group now". Watch the agents negotiate, then see what you were charged.
 5. Press "Add late buyer (simulated)" to see the price drop and the refund.
 6. Open "Merchant console" and press "Draft an offer with the pricing agent" on the standing-desk demand.
-7. Optional: connect an assistant to `<https://your-app.onrender.com>/mcp` and ask it to find and join a group.
+7. The demo returns to its starting state by itself (four of five buyers waiting) once it has been used and left idle for 45 minutes, so every judge gets the same walkthrough.
+8. Optional: connect an assistant to `<https://your-app.onrender.com>/mcp` and ask it to find and join a group.
 
 Without credentials, clone the repository and run `npm run seed -- --reset && npm start`: the same flow works in a clearly labelled simulation mode.

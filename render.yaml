@@ -40,8 +40,10 @@ services:
         value: "24"
       - key: PAYPAL_MCP
         value: "on" # the merchant agent reads PayPal through PayPal's remote MCP server
+      - key: DEMO_AUTO_RESET
+        value: "true" # seeds the demo on first start and resets it when it is used up and idle
       - key: DEMO_ADMIN
-        value: "true" # demo controls on group pages; set to "false" outside judging"
+        value: "true" # demo controls on group pages; set to "false" outside judging
 
   - type: cron
     name: quorum-settle

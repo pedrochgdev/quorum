@@ -94,6 +94,8 @@ export const config = {
   },
 
   demoAdmin: bool('DEMO_ADMIN', false),
+  // Hosted demos: seed an empty database at start, and put the demo back when it is used up and idle.
+  demoAutoReset: bool('DEMO_AUTO_RESET', false),
   cronSecret: env('CRON_SECRET'),
 };
 

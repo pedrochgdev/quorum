@@ -6,6 +6,7 @@ import { registerApi } from './api.ts';
 import { registerMcp } from './mcp.ts';
 import { CheckoutError, settleDue } from './engine.ts';
 import { PayPalError } from './paypal/index.ts';
+import { keepDemoFresh } from './demo.ts';
 import { homePage, merchantPage, mockCheckoutPage, notFoundPage, quorumPage } from './web/pages.ts';
 
 openDb();
@@ -55,6 +56,10 @@ export const server = createServer(async (req, res) => {
 
 const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()!);
 if (isMain) {
+  if (config.demoAutoReset) {
+    await keepDemoFresh().catch((e) => console.error('[demo]', e));
+    setInterval(() => keepDemoFresh().catch((e) => console.error('[demo]', e)), 5 * 60_000).unref();
+  }
   server.listen(config.port, () => {
     console.log(`Quorum running on ${config.baseUrl}`);
     console.log('Modes:', describeModes());

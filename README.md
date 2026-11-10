@@ -135,7 +135,7 @@ npm run typecheck         # tsc (needs npm install)
 `render.yaml` defines the web service (with a 1 GB disk for SQLite) and a cron job that calls `POST /api/cron/settle` every 15 minutes. The web service also settles due groups in-process every `SETTLE_INTERVAL_SECONDS`.
 
 1. Create the blueprint from this repository and set `BASE_URL`, the PayPal, Anthropic and Channel3 keys.
-2. Seed the demo once from the service shell: `npm run seed -- --reset`.
+2. Nothing to seed: with `DEMO_AUTO_RESET=true` (set in the blueprint) the service seeds the demo on first start, and puts it back to the starting state whenever it is used up or expired and nobody has touched it for 45 minutes. A reset never happens while PayPal is holding a real buyer's authorization.
 3. Register the webhook and save the id it prints as `PAYPAL_WEBHOOK_ID`:
    ```bash
    npm run paypal:webhook -- https://<your-app>.onrender.com
