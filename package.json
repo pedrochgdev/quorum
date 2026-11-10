@@ -19,6 +19,7 @@
     "i18n:check": "node --disable-warning=ExperimentalWarning scripts/i18n-check.ts",
     "check": "npm test && npm run i18n:check && npm run e2e:mock && npm run e2e:paypal-stub && npm run e2e:browser",
     "paypal:webhook": "node --disable-warning=ExperimentalWarning scripts/paypal-webhook.ts",
+    "paypal:webhook-test": "node --disable-warning=ExperimentalWarning scripts/webhook-test.ts",
     "paypal:check": "node --disable-warning=ExperimentalWarning scripts/paypal-check.ts",
     "e2e:sandbox": "node --disable-warning=ExperimentalWarning scripts/e2e-sandbox.ts",
     "sandbox:live-test": "node --disable-warning=ExperimentalWarning scripts/sandbox-live-test.ts",

@@ -140,7 +140,11 @@ npm run typecheck         # tsc (needs npm install)
    ```bash
    npm run paypal:webhook -- https://<your-app>.onrender.com
    ```
-4. Keep the service running until judging ends (December 15, 2026).
+4. Check that real PayPal webhooks arrive and verify. This makes one sandbox payment from your machine and asks the deployed app what it received:
+   ```bash
+   npm run paypal:webhook-test -- https://<your-app>.onrender.com
+   ```
+5. Keep the service running until judging ends (December 15, 2026).
 
 ## Project structure
 
@@ -173,7 +177,7 @@ test/                  node:test unit tests
 
 ## Limits and next steps
 
-- Verified against the real PayPal sandbox (`npm run e2e:sandbox`, `npm run sandbox:live-test`): order creation with `intent: AUTHORIZE`, approval through the redirect and through the PayPal Buttons, authorization, partial final capture, idempotent retries, void, partial refund, a Payouts batch, the Catalog Products API and the PayPal MCP server. Webhook signature verification is tested against a local stub only: PayPal can only deliver webhooks to a public URL, so register it after deploying (`npm run paypal:webhook`).
+- Verified against the real PayPal sandbox (`npm run e2e:sandbox`, `npm run sandbox:live-test`): order creation with `intent: AUTHORIZE`, approval through the redirect and through the PayPal Buttons, authorization, partial final capture, idempotent retries, void, partial refund, a Payouts batch, the Catalog Products API and the PayPal MCP server. Webhook signature verification is tested against a local stub only: PayPal can only deliver webhooks to a public URL, so register it after deploying (`npm run paypal:webhook`) and confirm it with `npm run paypal:webhook-test`.
 - By default every payment settles in the platform's PayPal account. `PAYPAL_PAYEE_ROUTING=true` names each merchant's account as the payee of its orders. PayPal accepts those orders, but paying and capturing them needs the payee to be a real business account that granted the platform permission, so it stays off until checked with a second sandbox business account. Production would use PayPal's partner flows.
 - The merchant agent's `list_transactions` tool needs "Transaction search" enabled on the PayPal app; without it the agent is told the data is unavailable and uses Quorum's own sales figures.
 - The merchant console has no login; set `MERCHANT_TOKEN` to require a token on its API.
