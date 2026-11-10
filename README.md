@@ -110,6 +110,11 @@ npm run sandbox:capture-test    # authorize $200, capture $170: the rule the who
 - Or run locally with no keys (simulation mode), as shown above.
 - **Connect an assistant:** add `https://<hosted-demo>/mcp` as an MCP server (Streamable HTTP) and ask it to "find a group for a compact espresso machine under $200 and join for me".
 
+## Submission material
+
+- [`docs/DEVPOST.md`](docs/DEVPOST.md): the text for each field of the Devpost form, including the AI tools statement and testing instructions.
+- [`docs/DEMO_VIDEO.md`](docs/DEMO_VIDEO.md): the shot-by-shot script for the demo video.
+
 ## Tests
 
 ```bash

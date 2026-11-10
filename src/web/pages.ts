@@ -72,7 +72,8 @@ export function homePage() {
     <textarea id="intent-text" name="text" rows="3" maxlength="500" required placeholder="A compact espresso machine for two, under $200, before December" data-t-placeholder></textarea>
     <div class="examples" aria-label="Examples">
       <button type="button" class="chip" data-example="Compact espresso machine for two, under $200, before December">Espresso machine under $200</button>
-      <button type="button" class="chip" data-example="Busco una carpa ultraligera para 2 personas, máximo $230">Carpa para 2 (español)</button>
+      <button type="button" class="chip" data-example="Busco una cafetera espresso compacta para dos, máximo $199">Cafetera espresso (español)</button>
+      <button type="button" class="chip" data-example="Ultralight tent for two people, max $240">Ultralight tent</button>
       <button type="button" class="chip" data-example="Electric gooseneck kettle for pour-over coffee, less than $65">Gooseneck kettle</button>
     </div>
     <label for="intent-email"><span data-t>Email</span> <span class="muted" data-t>(optional, to hear when your group closes)</span></label>
