@@ -70,7 +70,7 @@ export async function marketSearch(query: string, opts: { maxPrice?: number | nu
  * product's own list price count as alternatives a buyer would consider.
  */
 export function comparableOffers(offers: MarketOffer[], listPrice: number, limit = 5): MarketOffer[] {
-  const lo = listPrice * 0.6;
+  const lo = listPrice * 0.75;
   const hi = listPrice * 1.6;
   const seen = new Set<string>();
   return offers

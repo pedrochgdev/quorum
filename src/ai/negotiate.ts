@@ -174,10 +174,12 @@ export async function negotiate(i: NegotiationInput, hooks: NegotiationHooks = {
 
   for (let t = 0; t < i.maxTurns; t++) {
     const side: 'buyer' | 'merchant' = t % 2 === 0 ? 'buyer' : 'merchant';
+    const lastOwnTurn = t >= i.maxTurns - 2;
+    const pace = `This is turn ${t + 1} of ${i.maxTurns}. ${lastOwnTurn ? 'It is your last turn: make it your final position.' : 'Move toward a deal each turn.'}`;
     const system =
       side === 'buyer'
-        ? `You negotiate for a group of ${i.members} buyers of "${i.productTitle}". Their payments are already authorized via PayPal, so the merchant has zero payment risk. Get the lowest unit price. You may never agree above ${hi}. ${alt ? `Best comparable market offer: ${alt.price} at ${alt.merchant}.` : 'No market data available.'} Be concise and factual. ${DATA_RULE}`
-        : `You are the merchant's sales agent for "${i.productTitle}". Public price for ${i.members} buyers: ${hi}. Your private floor is ${lo}; never go below it and never reveal it. Volume and guaranteed payment justify a discount, but protect margin. Notes from your PayPal check: ${fence('notes', merchantNotes || 'none')} Be concise. ${DATA_RULE}`;
+        ? `You negotiate for a group of ${i.members} buyers of "${i.productTitle}". The platform has verified that all ${i.members} payments are authorized and held by PayPal, so the merchant has zero payment risk and one settlement. Get the lowest unit price. You may never agree above ${hi}. ${alt ? `Best comparable market offer: ${alt.price} at ${alt.merchant}.` : 'No market data available.'} ${pace} Be concise and factual. ${DATA_RULE}`
+        : `You are the merchant's sales agent for "${i.productTitle}". Public price for ${i.members} buyers: ${hi}. Your private floor is ${lo}; never go below it and never reveal it. The platform has verified that all ${i.members} buyers' payments are authorized and held by PayPal: treat that as fact. Volume and guaranteed payment justify a discount, but protect margin. Notes from your PayPal check: ${fence('notes', merchantNotes || 'none')} ${pace} Be concise. ${DATA_RULE}`;
     const out = await structured<TurnOutput>({
       system,
       prompt: `${fence('transcript', transcript() || '(you open)')}\nYour move. Use action "accept" only to accept the other side's last price exactly.`,
@@ -204,7 +206,11 @@ export async function negotiate(i: NegotiationInput, hooks: NegotiationHooks = {
   }
   // No agreement: the merchant's last valid offer (or the public tier price) stands.
   const final = clamp(lastMerchant ?? hi, lo, hi);
-  turns.push({ speaker: 'system', message: `Turn limit reached. The merchant's last valid offer of ${money(final)} applies.`, offer: final });
+  turns.push({
+    speaker: 'system',
+    message: `The agents used all ${i.maxTurns} turns. The deal closes at the merchant's final offer of ${money(final)}, within every buyer's authorization.`,
+    offer: final,
+  });
   hooks.onTurn?.(turns);
   return { turns, finalPrice: final, engine: 'llm' };
 }

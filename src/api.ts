@@ -163,7 +163,8 @@ export function registerApi() {
     requireAdmin(ctx);
     const body = await readJson<{ email?: string; ref?: string }>(ctx.req);
     const n = all('SELECT id FROM commitments WHERE quorum_id = ?', ctx.params.id).length + 1;
-    const email = isEmail(body.email) ? body.email : `demo.buyer${n}@example.com`;
+    const names = ['valentina', 'james', 'camila', 'noah', 'lucia', 'ethan', 'renata', 'oliver', 'paula', 'liam', 'elena', 'mason'];
+    const email = isEmail(body.email) ? body.email : `${names[n % names.length]}.demo${n}@example.com`;
     const c = await addSimulatedBuyer(ctx.params.id, email, body.ref || null);
     sendJson(ctx.res, 200, { commitmentId: c.id, quorum: quorumView(getQuorum(ctx.params.id)!) });
   });

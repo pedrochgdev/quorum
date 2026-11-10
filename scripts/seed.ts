@@ -11,6 +11,7 @@ import { openDb, run } from '../src/db.ts';
 import { createMerchant, createProduct, createQuorum, getProduct } from '../src/models.ts';
 import { completeAuthorization, startCheckout } from '../src/engine.ts';
 import { mockPayPal } from '../src/paypal/index.ts';
+import { marketFor } from '../src/ai/catalog.ts';
 import { ensureProductEmbedding, submitIntent } from '../src/ai/intent.ts';
 
 if (process.argv.includes('--reset')) {
@@ -19,6 +20,10 @@ if (process.argv.includes('--reset')) {
   console.log('Database reset.');
 }
 openDb();
+
+// Seeding must give the same demo every time, so the sample requests are routed by
+// rules, not by the model. (Real requests typed into the app still use Claude.)
+if (!process.argv.includes('--llm')) config.anthropic.apiKey = '';
 
 const cafe = createMerchant('Café Altura', null);
 const trail = createMerchant('Trailhead Supply', null);
@@ -85,6 +90,11 @@ for (const p of products) await ensureProductEmbedding(getProduct(p.id)!);
 const [espresso, , kettle] = products;
 const groupA = createQuorum(getProduct(espresso.id)!, Number(process.env.SEED_GROUP_HOURS ?? 48), 'Group for: compact espresso machine');
 const groupB = createQuorum(getProduct(kettle.id)!, Number(process.env.SEED_EXPIRING_MINUTES ?? 15) / 60, 'Group for: gooseneck kettle');
+
+// Live market check for the seeded groups (empty without a Channel3 key).
+for (const [group, product] of [[groupA, espresso], [groupB, kettle]] as const) {
+  run('UPDATE quorums SET market_json = ? WHERE id = ?', JSON.stringify(await marketFor(product.title, product.list_price)), group.id);
+}
 
 async function simulatedMember(quorumId: string, text: string, email: string) {
   const r = await submitIntent(text, email);
