@@ -87,16 +87,17 @@ The footer always shows which mode each service is in. The full list is in `.env
 ### Check your PayPal sandbox app
 
 ```bash
-npm run paypal:check            # credentials, an AUTHORIZE order, catalog, webhooks, PayPal MCP server
-npm run sandbox:capture-test    # authorize $200, capture $170: the rule the whole model depends on
+npm run paypal:check         # credentials, an AUTHORIZE order, catalog, webhooks, PayPal MCP server (no browser)
+npm run sandbox:live-test    # real sandbox: authorize $200 → capture $170 → refund $5; authorize → void
+npm run e2e:sandbox          # the whole app against the real sandbox: join, leave, close, late join + refund
 ```
 
-`paypal:check` needs no browser. `sandbox:capture-test` prints a PayPal link: approve it with a sandbox **personal** account and the script finishes on its own with PASS or FAIL.
+The last two need Chrome and no person: a real browser pays as a guest with a freshly generated sandbox test card, and every result is checked both in Quorum and directly at PayPal. If PayPal changes its checkout page and the automation stops working, `npm run sandbox:capture-test` prints a link you approve by hand instead.
 
 ### Demo script (under 3 minutes)
 
 1. Home: type a request, or click an example. The intent agent groups you ("5 people are looking for…"). Switch to Spanish with the ES button.
-2. Group page: commit with PayPal. The progress bar moves; nothing is charged. "Leave the group" releases the hold.
+2. Group page: commit with PayPal. In sandbox mode the page shows a test card: choose "Debit or Credit Card" and paste it. The progress bar moves; nothing is charged. "Leave the group" releases the hold.
 3. "Draft my invite": the growth agent writes the message with your referral link. Add two simulated buyers.
 4. "Close group now": the merchant agent reads its PayPal account through PayPal's MCP server, then the agents negotiate live. Everyone is charged the final price ($199 authorized, about $165 captured). "How this price was reached" explains it.
 5. "Add late buyer": the eighth buyer reaches the next tier, the price drops, and everyone already charged is refunded the difference.
@@ -106,7 +107,7 @@ npm run sandbox:capture-test    # authorize $200, capture $170: the rule the who
 ## For judges
 
 - **Hosted demo:** `BASE_URL` of the deployed instance (add after deploying).
-- **Sandbox buyer accounts:** add the email and password of two sandbox personal accounts here before submitting, so you can approve a payment yourself.
+- **Paying in the sandbox needs no account:** on a group page choose "Debit or Credit Card" in PayPal's checkout and use the test card the page shows (any future expiry, any CVV). A sandbox personal account works too.
 - Or run locally with no keys (simulation mode), as shown above.
 - **Connect an assistant:** add `https://<hosted-demo>/mcp` as an MCP server (Streamable HTTP) and ask it to "find a group for a compact espresso machine under $200 and join for me".
 
@@ -123,7 +124,9 @@ npm test                  # 31 unit tests: pricing, negotiation limits (2,000 ra
 npm run i18n:check        # every interface string has a Spanish translation
 npm run e2e:mock          # full cycle over HTTP in simulation mode: checkout, live stream, close, late join + refunds, leave, demand board, MCP agent flow
 npm run e2e:paypal-stub   # full cycle through the real PayPal REST client against a local PayPal stub, including signed webhooks
-npm run check             # all of the above
+npm run e2e:browser       # a real Chrome clicks through the product: checkout window, live negotiation, refund, leaving, pricing agent, Spanish
+npm run check             # all of the above (no keys, no network)
+npm run e2e:sandbox       # the app against the REAL PayPal sandbox (needs sandbox keys and Chrome)
 npm run typecheck         # tsc (needs npm install)
 ```
 
@@ -163,14 +166,15 @@ src/
   paypal/mock.ts       simulated PayPal ledger with the same rules
   paypal/webhooks.ts   webhook verification and state sync
 public/                styles, i18n (English/Spanish) and vanilla JS for the three pages
-scripts/               seed, end-to-end checks, PayPal checks, webhook registration
+scripts/               seed, end-to-end checks (API, browser, real sandbox), PayPal checks, webhook registration
+scripts/lib/           a small Chrome DevTools driver and the sandbox guest-checkout helper (no dependencies)
 test/                  node:test unit tests
 ```
 
 ## Limits and next steps
 
-- The capture, void and refund calls are covered by tests against a simulated ledger and a local PayPal stub, and order creation, the catalog and the MCP server were run against the real sandbox. Approving a payment needs a person with a sandbox personal account: run `npm run sandbox:capture-test` on your own app before relying on it.
-- By default every payment settles in the platform's PayPal account. `PAYPAL_PAYEE_ROUTING=true` names each merchant's account as the payee of its orders, but capturing for another account needs that account's permission, so it is off until verified with a second sandbox business account. Production would use PayPal's partner flows.
+- Verified against the real PayPal sandbox (`npm run e2e:sandbox`, `npm run sandbox:live-test`): order creation with `intent: AUTHORIZE`, approval through the redirect and through the PayPal Buttons, authorization, partial final capture, idempotent retries, void, partial refund, a Payouts batch, the Catalog Products API and the PayPal MCP server. Webhook signature verification is tested against a local stub only: PayPal can only deliver webhooks to a public URL, so register it after deploying (`npm run paypal:webhook`).
+- By default every payment settles in the platform's PayPal account. `PAYPAL_PAYEE_ROUTING=true` names each merchant's account as the payee of its orders. PayPal accepts those orders, but paying and capturing them needs the payee to be a real business account that granted the platform permission, so it stays off until checked with a second sandbox business account. Production would use PayPal's partner flows.
 - The merchant agent's `list_transactions` tool needs "Transaction search" enabled on the PayPal app; without it the agent is told the data is unavailable and uses Quorum's own sales figures.
 - The merchant console has no login; set `MERCHANT_TOKEN` to require a token on its API.
 - One currency per deployment (`CURRENCY`, default USD).
