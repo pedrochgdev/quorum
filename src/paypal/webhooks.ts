@@ -49,6 +49,16 @@ export function applyEvent(event: WebhookEvent) {
       }
       break;
     }
+    case 'PAYMENT.CAPTURE.REFUNDED': {
+      // A refund made outside Quorum (for example from the PayPal dashboard): keep the buyer's total in sync.
+      const captureId = (r.links ?? []).find((l: any) => l.rel === 'up')?.href?.split('/').pop();
+      const c = captureId ? get<Commitment>('SELECT * FROM commitments WHERE capture_id = ?', captureId) : undefined;
+      const total = Number(r.seller_payable_breakdown?.total_refunded_amount?.value ?? NaN);
+      if (c && Number.isFinite(total) && total > c.refunded_amount) {
+        run('UPDATE commitments SET refunded_amount = ?, updated_at = ? WHERE id = ?', total, t, c.id);
+      }
+      break;
+    }
     case 'PAYMENT.CAPTURE.DENIED':
     case 'PAYMENT.CAPTURE.DECLINED': {
       const c = byAuth(related.authorization_id);

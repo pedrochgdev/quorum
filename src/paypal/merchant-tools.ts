@@ -104,7 +104,7 @@ function restTools(product: Product): AgentTool[] {
           page_size: '100',
         });
         const r = await paypalFetch<{ transaction_details?: unknown[]; total_items?: number }>(`/v1/reporting/transactions?${q}`);
-        return { days, paypal_transactions: r.total_items ?? r.transaction_details?.length ?? 0, ...quorumSales(product, days) };
+        return { paypal_transactions: r.total_items ?? r.transaction_details?.length ?? 0, ...quorumSales(product, days) };
       },
     },
     {
@@ -138,7 +138,7 @@ function mcpTools(product: Product, mcp: McpSseClient, available: Set<string>): 
         const paypal = Array.isArray(r?.transaction_details)
           ? { paypal_transactions: r.total_items ?? r.transaction_details.length }
           : { paypal_transactions: 'unavailable', paypal_note: String(r?.message ?? r ?? '').slice(0, 160) };
-        return { days, ...paypal, ...quorumSales(product, days) };
+        return { ...paypal, ...quorumSales(product, days) };
       },
     },
     {
