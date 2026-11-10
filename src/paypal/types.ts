@@ -5,6 +5,7 @@ export type CreateOrderInput = {
   referenceId: string; // our quorum id
   description: string;
   requestId: string;
+  payeeEmail?: string | null; // send the money to this merchant account instead of the platform's
 };
 
 export type OrderResult = { id: string; status: string; approveUrl?: string };

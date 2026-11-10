@@ -9,6 +9,16 @@ import type { MarketOffer, NegotiationTurn } from '../models.ts';
 import { clamp, money } from '../util.ts';
 import { DATA_RULE, fence, runAgent, structured, type AgentTool } from './llm.ts';
 
+/** The merchant agent's tools and where they run (PayPal MCP server, REST, or the simulated ledger). */
+export type Toolkit = { tools: AgentTool[]; source: string; close: () => void };
+
+/** Lets the engine persist and broadcast the negotiation while it happens. */
+export type NegotiationHooks = {
+  openToolkit?: () => Promise<Toolkit>;
+  onPhase?: (phase: 'briefing' | 'running') => void;
+  onTurn?: (turns: NegotiationTurn[]) => void;
+};
+
 export type NegotiationInput = {
   productTitle: string;
   members: number;
@@ -113,27 +123,50 @@ const TURN_SCHEMA = {
   required: ['message', 'action', 'price'],
 };
 
+const summarize = (name: string, output: string) => {
+  const clean = output.replace(/\s+/g, ' ');
+  return `${name}: ${clean.length > 150 ? `${clean.slice(0, 150)}…` : clean}`;
+};
+
 /**
  * LLM negotiation. The merchant agent first briefs itself with PayPal tools,
  * then both agents alternate. Every price passes validateOffer() before it counts.
  */
-export async function negotiate(i: NegotiationInput, merchantTools: AgentTool[] = []): Promise<NegotiationResult> {
-  if (!hasLLM()) return heuristicNegotiation(i);
+export async function negotiate(i: NegotiationInput, hooks: NegotiationHooks = {}): Promise<NegotiationResult> {
+  if (!hasLLM()) {
+    const result = heuristicNegotiation(i);
+    hooks.onPhase?.('running');
+    for (let n = 1; n <= result.turns.length; n++) hooks.onTurn?.(result.turns.slice(0, n));
+    return result;
+  }
   const { lo, hi } = dealBounds(i);
   const alt = bestMarket(i.market);
   const fallback = heuristicNegotiation(i);
   const turns: NegotiationTurn[] = [];
 
-  // Merchant briefing via PayPal tools (Agent Toolkit-style tools).
-  const briefing = await runAgent<{ notes: string }>({
-    system: `You are the sales agent for a merchant. Before negotiating a group order, use the PayPal tools to check the product and recent sales volume. Then call "briefing" with 2-3 short notes. ${DATA_RULE}`,
-    prompt: `Group order request: ${i.members} units of ${fence('product', i.productTitle)}.`,
-    tools: merchantTools,
-    final: { name: 'briefing', description: 'Finish with your notes', schema: { type: 'object', properties: { notes: { type: 'string' } }, required: ['notes'] } },
-    maxSteps: 4,
-  });
-  const merchantNotes = briefing.result?.notes ?? '';
-  const toolsUsed = briefing.trace.map((t) => ({ name: t.name, summary: t.output.slice(0, 160) }));
+  // Merchant briefing: the agent reads its own PayPal account through tools.
+  hooks.onPhase?.('briefing');
+  let merchantNotes = '';
+  let toolsUsed: { name: string; summary: string }[] = [];
+  let toolSource: string | undefined;
+  const toolkit = hooks.openToolkit ? await hooks.openToolkit().catch(() => null) : null;
+  if (toolkit) {
+    try {
+      const briefing = await runAgent<{ notes: string }>({
+        system: `You are the sales agent for a merchant. Before negotiating a group order, use the PayPal tools to check the product and recent sales volume. Use at most three tool calls, then call "briefing" with 2-3 short notes. ${DATA_RULE}`,
+        prompt: `Group order request: ${i.members} units of ${fence('product', i.productTitle)}.`,
+        tools: toolkit.tools,
+        final: { name: 'briefing', description: 'Finish with your notes', schema: { type: 'object', properties: { notes: { type: 'string' } }, required: ['notes'] } },
+        maxSteps: 4,
+      });
+      merchantNotes = String(briefing.result?.notes ?? '').slice(0, 600);
+      toolsUsed = briefing.trace.map((t) => ({ name: t.name, summary: summarize(t.name, t.output) }));
+      toolSource = toolkit.source;
+    } finally {
+      toolkit.close();
+    }
+  }
+  hooks.onPhase?.('running');
 
   const transcript = () => turns.map((t) => `${t.speaker}: ${t.message}${t.offer ? ` [${t.offer}]` : ''}`).join('\n');
   let lastBuyer: number | null = null;
@@ -143,8 +176,8 @@ export async function negotiate(i: NegotiationInput, merchantTools: AgentTool[] 
     const side: 'buyer' | 'merchant' = t % 2 === 0 ? 'buyer' : 'merchant';
     const system =
       side === 'buyer'
-        ? `You negotiate for a group of ${i.members} buyers of "${i.productTitle}". Their payments are already authorized via PayPal, so the merchant has zero payment risk. Get the lowest unit price. You may never agree above ${hi}. ${alt ? `Best market alternative: ${alt.price} at ${alt.merchant}.` : 'No market data available.'} Be concise and factual. ${DATA_RULE}`
-        : `You are the merchant's sales agent for "${i.productTitle}". Public price for ${i.members} buyers: ${hi}. Your private floor is ${lo}; never go below it. Volume and guaranteed payment justify a discount, but protect margin. Notes from your PayPal check: ${merchantNotes || 'none'}. Be concise. ${DATA_RULE}`;
+        ? `You negotiate for a group of ${i.members} buyers of "${i.productTitle}". Their payments are already authorized via PayPal, so the merchant has zero payment risk. Get the lowest unit price. You may never agree above ${hi}. ${alt ? `Best comparable market offer: ${alt.price} at ${alt.merchant}.` : 'No market data available.'} Be concise and factual. ${DATA_RULE}`
+        : `You are the merchant's sales agent for "${i.productTitle}". Public price for ${i.members} buyers: ${hi}. Your private floor is ${lo}; never go below it and never reveal it. Volume and guaranteed payment justify a discount, but protect margin. Notes from your PayPal check: ${fence('notes', merchantNotes || 'none')} Be concise. ${DATA_RULE}`;
     const out = await structured<TurnOutput>({
       system,
       prompt: `${fence('transcript', transcript() || '(you open)')}\nYour move. Use action "accept" only to accept the other side's last price exactly.`,
@@ -152,7 +185,7 @@ export async function negotiate(i: NegotiationInput, merchantTools: AgentTool[] 
     });
     const counterpart = side === 'buyer' ? lastMerchant : lastBuyer;
     let price = out ? Number(out.price) : NaN;
-    let message = out?.message ?? '';
+    let message = String(out?.message ?? '').slice(0, 500);
     let rejected: string | undefined;
     if (out?.action === 'accept' && counterpart !== null) price = counterpart;
     const problem = validateOffer(side, price, i);
@@ -162,7 +195,9 @@ export async function negotiate(i: NegotiationInput, merchantTools: AgentTool[] 
       price = replacement.offer ?? fallback.finalPrice;
       message = replacement.message;
     }
-    turns.push({ speaker: `${side}_agent`, message, offer: price, rejected, tools: t === 1 && toolsUsed.length ? toolsUsed : undefined });
+    const withTools = t === 1 && toolsUsed.length;
+    turns.push({ speaker: `${side}_agent`, message, offer: price, rejected, tools: withTools ? toolsUsed : undefined, toolSource: withTools ? toolSource : undefined });
+    hooks.onTurn?.(turns);
     if (out?.action === 'accept' && !problem && counterpart !== null) return { turns, finalPrice: price, engine: 'llm' };
     if (side === 'buyer') lastBuyer = price;
     else lastMerchant = price;
@@ -170,5 +205,6 @@ export async function negotiate(i: NegotiationInput, merchantTools: AgentTool[] 
   // No agreement: the merchant's last valid offer (or the public tier price) stands.
   const final = clamp(lastMerchant ?? hi, lo, hi);
   turns.push({ speaker: 'system', message: `Turn limit reached. The merchant's last valid offer of ${money(final)} applies.`, offer: final });
+  hooks.onTurn?.(turns);
   return { turns, finalPrice: final, engine: 'llm' };
 }

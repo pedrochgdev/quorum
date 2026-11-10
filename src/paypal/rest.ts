@@ -18,7 +18,7 @@ export const paypalBaseUrl = () =>
 
 let token: { value: string; expiresAt: number } | null = null;
 
-async function accessToken(): Promise<string> {
+export async function accessToken(): Promise<string> {
   if (token && Date.now() < token.expiresAt - 60_000) return token.value;
   const { clientId, clientSecret } = config.paypal;
   if (!clientId || !clientSecret) throw new Error('PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET are required');
@@ -75,6 +75,7 @@ export class RestPayPal implements PayPalProvider {
             custom_id: input.customId,
             description: input.description.slice(0, 127),
             amount: { currency_code: input.currency, value: amountString(input.amount) },
+            ...(input.payeeEmail ? { payee: { email_address: input.payeeEmail } } : {}),
           },
         ],
         payment_source: {
