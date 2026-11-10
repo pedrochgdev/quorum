@@ -35,8 +35,9 @@ type Card = ReturnType<typeof nextCard>;
 
 export type GuestOptions = {
   tag: string; // makes the payer email unique
-  returnPrefix: string; // PayPal sends the browser here once the payer approved
+  returnPrefix?: string; // redirect flow: PayPal sends the browser here once the payer approved
   cancelMarker?: string; // part of the cancel URL
+  done?: () => Promise<boolean>; // popup flow (PayPal Buttons): true once the merchant page received the approval
 };
 
 /** Pay as a guest, trying a few fresh test cards if PayPal refuses one. Returns the page, now on the return URL. */
@@ -55,7 +56,11 @@ export async function payAsGuest(browser: Browser, approveUrl: string, opts: Gue
 }
 
 async function payOnce(browser: Browser, approveUrl: string, opts: GuestOptions, card: Card): Promise<Page> {
-  const page = await browser.newPage(approveUrl);
+  return payOnPage(await browser.newPage(approveUrl), opts, card);
+}
+
+/** Fill and submit PayPal's guest card form on a checkout page that is already open (for example the Buttons popup). */
+export async function payOnPage(page: Page, opts: GuestOptions, card: Card = nextCard()): Promise<Page> {
   const dir = process.env.DEBUG_SHOTS;
   const shot = async (name: string) => {
     if (dir) await page.screenshot(`${dir}/${opts.tag}-${name}.png`).catch(() => {});
@@ -122,8 +127,9 @@ async function payOnce(browser: Browser, approveUrl: string, opts: GuestOptions,
 
   const end = Date.now() + 90_000;
   while (Date.now() < end) {
+    if (opts.done && (await opts.done())) return page;
     const url = await page.url().catch(() => '');
-    if (url.startsWith(opts.returnPrefix)) {
+    if (opts.returnPrefix && url.startsWith(opts.returnPrefix)) {
       if (opts.cancelMarker && url.includes(opts.cancelMarker)) throw new Error('PayPal returned to the cancel URL');
       return page;
     }

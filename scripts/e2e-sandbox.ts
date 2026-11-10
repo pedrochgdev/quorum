@@ -19,7 +19,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { config } from '../src/config.ts';
 import { paypalBaseUrl, paypalFetch } from '../src/paypal/rest.ts';
 import { Browser, findChrome, sleep } from './lib/cdp.ts';
-import { payAsGuest } from './lib/paypal-guest.ts';
+import { payAsGuest, payOnPage } from './lib/paypal-guest.ts';
 
 if (!config.paypal.clientId || !config.paypal.clientSecret || config.paypal.mode === 'live') {
   console.error('Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET for a SANDBOX app (PAYPAL_MODE must not be live).');
@@ -103,15 +103,51 @@ try {
   check(authAtPayPal.status === 'CREATED' && authAtPayPal.amount.value === '199.00', `PayPal: authorization is ${authAtPayPal.status} for $${authAtPayPal.amount.value}, nothing captured`);
   check((await call('GET', `/api/quorums/${groupA}`)).json.quorum.members === 5, 'the group reached its goal: 5 of 5');
 
-  console.log('\n2. Join another group, then leave: PayPal voids the hold');
-  const co2 = await call('POST', `/api/quorums/${groupB}/checkout`, { email: 'sandbox.buyer@example.com' });
-  const page2 = await payAsGuest(browser, co2.json.approveUrl, { tag: 'leave', returnPrefix: `${base}/q/${groupB}` });
+  console.log('\n2. Join another group with the PayPal button on the page, then leave: PayPal voids the hold');
+  const page2 = await browser.newPage(`${base}/q/${groupB}`);
   await page2.acceptDialogs();
+  await page2.type('#commit-email', 'sandbox.buyer@example.com');
+  // The PayPal JS SDK renders its buttons in a cross-origin iframe: click the first one (PayPal) by position.
+  await page2.waitFor("(() => { const f = document.querySelector('#paypal-slot iframe'); return f && f.getBoundingClientRect().height > 40; })()", 40_000);
+  await sleep(2500);
+  await page2.type('#commit-email', 'sandbox.buyer@example.com'); // the buttons validate the email on click
+  const spot = await page2.eval<{ x: number; y: number }>(
+    "(() => { const f = document.querySelector('#paypal-slot iframe'); f.scrollIntoView({ block: 'center' }); const r = f.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + 22 }; })()",
+  );
+  await page2.clickAt(spot.x, spot.y);
+  const popup = await browser.waitForPage('sandbox.paypal.com/', 40_000).catch(async (err) => {
+    if (process.env.DEBUG_SHOTS) {
+      await page2.screenshot(`${process.env.DEBUG_SHOTS}/button-nopopup.png`).catch(() => {});
+      console.log('    spot:', spot, 'targets:', (await browser.pages()).map((t) => `${t.type}:${t.url.slice(0, 60)}`));
+      console.log('    email:', await page2.eval("document.querySelector('#commit-email')?.value"), 'toast:', await page2.eval("document.querySelector('.toast')?.innerText"));
+    }
+    throw err;
+  });
+  check(true, 'the PayPal button (JS SDK, intent=authorize) opened PayPal\'s checkout window');
+  const approved = async () => page2.eval<boolean>("!!document.querySelector('#leave-group')").catch(() => false);
+  await payOnPage(popup, { tag: 'button', done: approved }).catch(async (err) => {
+    // PayPal closes its window as soon as the payer approves, which can interrupt the last check.
+    if (process.env.DEBUG_SHOTS) {
+      await sleep(4000);
+      await page2.screenshot(`${process.env.DEBUG_SHOTS}/button-after.png`).catch(() => {});
+      console.log('    targets:', (await browser.pages()).map((t) => `${t.type}:${t.url.slice(0, 70)}`));
+    }
+    for (let i = 0; i < 20 && !(await approved()); i++) await sleep(1000);
+    if (!(await approved())) throw err;
+  });
   await page2.waitForSelector('#leave-group', 30_000);
+  const co2 = { json: { commitmentId: await page2.eval<string>(`localStorage.getItem('quorum:cmt:${groupB}')`) } };
   const held = commitment(co2.json.commitmentId);
+  check(held.provider === 'paypal' && held.paypal_order_id, `the SDK's onApprove authorized order ${held.paypal_order_id}`);
   check(held.status === 'authorized', `joined the kettle group: PayPal holds $${held.authorized_amount}`);
-  await page2.click('#leave-group');
-  await page2.waitForSelector('#paypal-slot', 30_000);
+  // PayPal's overlay fades out after its window closes; click once it no longer covers the page.
+  for (let i = 0; i < 6 && (await page2.eval("!!document.querySelector('#leave-group')")); i++) {
+    await sleep(2000);
+    await page2.focus();
+    await page2.click('#leave-group').catch(() => {});
+    await page2.waitForSelector('#paypal-slot', 8000).catch(() => {});
+  }
+  await page2.waitForSelector('#paypal-slot', 10_000);
   check(commitment(co2.json.commitmentId).status === 'voided', 'clicked "Leave the group": Quorum marks the commitment released');
   const voided = await paypalFetch(`/v2/payments/authorizations/${held.authorization_id}`);
   check(voided.status === 'VOIDED', `PayPal: authorization ${held.authorization_id} is ${voided.status}`);
@@ -149,6 +185,7 @@ try {
 } catch (err) {
   failures++;
   console.error(`\n${(err as Error).message}`, JSON.stringify((err as any).details ?? '').slice(0, 400));
+  if (process.env.DEBUG_SHOTS) console.error((err as Error).stack);
 } finally {
   await browser.close();
   db.close();

@@ -145,17 +145,30 @@ try {
     check((await page.text('.result-banner.ok')).includes(`$${final - expected} was refunded`), `I was refunded $${final - expected}`, await page.text('.result-banner.ok'));
   }
 
-  console.log('Leave a group');
+  console.log('An update while paying does not interrupt the checkout');
   const kettle = await browser.newPage(`${base}/q/${groupB}`);
   await kettle.acceptDialogs();
   await kettle.waitForSelector('#mock-pay');
-  await commit(kettle, 'tester@example.com');
+  await kettle.type('#commit-email', 'tester@example.com');
+  await kettle.eval("document.querySelector('#mock-pay').dataset.same = 'yes'");
+  await kettle.click('#mock-pay');
+  const payWindow = await browser.waitForPage('/mock-paypal/checkout');
+  // While the payment window is open, someone else joins: the page updates live.
+  await fetch(`${base}/api/quorums/${groupB}/simulate-buyer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  await kettle.waitFor("document.querySelector('.stats').innerText.includes('3 / 5')");
+  await sleep(300);
+  const kept = await kettle.eval<{ email: string; same: string | undefined }>("({ email: document.querySelector('#commit-email').value, same: (document.querySelector('#mock-pay') || {}).dataset?.same })");
+  check(kept.email === 'tester@example.com' && kept.same === 'yes', 'the page updated (3 of 5) without rebuilding the PayPal button or clearing the email', kept);
+  await payWindow.type('#sim-email', 'tester@example.com');
+  await payWindow.click('#sim-approve');
+
+  console.log('Leave a group');
   await kettle.waitForSelector('#leave-group');
-  check((await kettle.text('.stats')).includes('3 / 5'), 'joined a second group (3 of 5)');
+  check((await kettle.text('.stats')).includes('4 / 5'), 'the interrupted-looking payment still completed (4 of 5)');
   await kettle.click('#leave-group');
   await kettle.waitForSelector('#mock-pay');
-  await kettle.waitFor("document.querySelector('.stats').innerText.includes('2 / 5')");
-  check((await kettle.text('.members')).includes('released'), 'left the group: hold released, back to 2 of 5');
+  await kettle.waitFor("document.querySelector('.stats').innerText.includes('3 / 5')");
+  check((await kettle.text('.members')).includes('released'), 'left the group: hold released, back to 3 of 5');
 
   console.log('Merchant console: pricing agent');
   const merchant = await browser.newPage(`${base}/merchant`);

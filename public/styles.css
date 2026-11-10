@@ -200,6 +200,11 @@ label:first-child { margin-top: 0; }
 .facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; font-size: 0.9rem; color: #4a463f; }
 .facts li { padding: 0.55rem 0.75rem; background: #faf8f3; border: 1px solid var(--line); border-radius: 10px; }
 
+.sandbox-hint { margin-top: 0.6rem; padding: 0.6rem 0.75rem; border: 1px dashed var(--line); border-radius: 10px; background: #fcfbf7; }
+.sandbox-hint p { margin: 0; }
+.test-card { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.4rem !important; }
+.test-card code { font-size: 0.95rem; letter-spacing: 0.04em; }
+
 /* Merchant console: pricing agent and payee */
 .draft-note:not(:empty) { margin-top: 0.7rem; }
 .draft-note .market { margin-top: 0.5rem; }

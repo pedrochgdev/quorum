@@ -189,11 +189,31 @@ export class Page {
     }
   }
 
-  /** Focus an input, clear it and type real key events. */
+  /** A real mouse click at page coordinates (works on cross-origin iframes such as PayPal's buttons). */
+  async clickAt(x: number, y: number) {
+    for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) {
+      await this.cdp('Input.dispatchMouseEvent', { type, x, y, button: type === 'mouseMoved' ? 'none' : 'left', clickCount: type === 'mouseMoved' ? 0 : 1 });
+    }
+  }
+
+  /** Bring this tab to the front: Chrome only delivers typed text to the focused page. */
+  async focus() {
+    await this.cdp('Page.bringToFront');
+  }
+
+  /** Focus an input, clear it and type. Retries until the field really holds the text. */
   async type(selector: string, text: string) {
     await this.waitForSelector(selector);
-    await this.eval(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); el.focus(); el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); })()`);
-    await this.cdp('Input.insertText', { text });
+    const sel = JSON.stringify(selector);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await this.focus();
+      await this.eval(`(() => { const el = document.querySelector(${sel}); el.focus(); el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+      await this.cdp('Input.insertText', { text });
+      await sleep(80);
+      if ((await this.eval<string>(`(document.querySelector(${sel}) || {}).value || ''`)) === text) return;
+      await sleep(300); // the page may have re-rendered the field; try again
+    }
+    throw new Error(`Could not type into ${selector}`);
   }
 
   text(selector = 'body') {

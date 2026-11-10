@@ -243,7 +243,10 @@
       ${outboxCard()}
     `;
 
-    const key = `${q.status}|${settled}|${me ? me.status : 'none'}|${state.admin}|${q.lateJoin.open}|${q.lateJoin.price}|${q.lateJoin.nextDrop ? q.lateJoin.nextDrop.needed : ''}`;
+    // The side column holds the PayPal buttons: re-render it only when what it shows really changes.
+    // A checkout that is still in PayPal's window (status "created") must not rebuild it, or the payment would be cut off.
+    const mineKey = me && (me.status === 'authorized' || me.status === 'captured') ? me.status : 'none';
+    const key = `${q.status}|${settled}|${mineKey}|${state.admin}|${q.lateJoin.open}|${q.lateJoin.price}|${q.lateJoin.nextDrop ? q.lateJoin.nextDrop.needed : ''}`;
     if (key !== sideKey) {
       sideKey = key;
       renderSide(q, me, settled);
@@ -333,7 +336,8 @@
   }
 
   function joinCard(eyebrow, title, body) {
-    const saved = store.get('quorum:email') || '';
+    // Keep whatever the person already typed if the card has to be rebuilt.
+    const saved = emailValue() || store.get('quorum:email') || '';
     return `<section class="card side-card">
       <p class="eyebrow">${eyebrow}</p>
       <h3>${title}</h3>
@@ -341,8 +345,31 @@
       <label for="commit-email">${t('Your email')}</label>
       <input id="commit-email" type="email" value="${esc(saved)}" placeholder="you@example.com" autocomplete="email">
       <div class="paypal-slot" id="paypal-slot"></div>
-      ${window.QUORUM.paypalMode === 'mock' ? `<p class="muted small">${t('PayPal is in simulation mode on this server: no sandbox credentials are set.')}</p>` : `<p class="muted small">${t('PayPal sandbox: approve with a sandbox personal account. No real money moves.')}</p>`}
+      ${window.QUORUM.paypalMode === 'mock' ? `<p class="muted small">${t('PayPal is in simulation mode on this server: no sandbox credentials are set.')}</p>` : sandboxHint()}
     </section>`;
+  }
+
+  // A fresh sandbox test card, like PayPal's sandbox card generator makes (Luhn-valid, sandbox only).
+  let sandboxCard = '';
+  function testCard() {
+    if (sandboxCard) return sandboxCard;
+    let digits = '403203';
+    while (digits.length < 15) digits += Math.floor(Math.random() * 10);
+    let sum = 0;
+    for (let i = 0; i < 15; i++) {
+      let d = Number(digits[14 - i]);
+      if (i % 2 === 0) { d *= 2; if (d > 9) d -= 9; }
+      sum += d;
+    }
+    sandboxCard = digits + ((10 - (sum % 10)) % 10);
+    return sandboxCard;
+  }
+
+  function sandboxHint() {
+    if (window.QUORUM.paypalMode !== 'sandbox') return '';
+    const card = testCard().replace(/(.{4})/g, '$1 ').trim();
+    return `<div class="sandbox-hint"><p class="muted small">${t('PayPal sandbox: no real money moves. No account needed: choose "Debit or Credit Card" and use this test card.')}</p>
+      <p class="test-card"><code id="test-card">${card}</code> <span class="muted small">12/30 · 123</span> <button type="button" class="btn btn-small" id="copy-card">${t('Copy')}</button></p></div>`;
   }
 
   function inviteShell() {
@@ -353,6 +380,10 @@
   function wireSide(q, me) {
     const slot = document.getElementById('paypal-slot');
     if (slot) mountPayPal(slot);
+    const copyCard = document.getElementById('copy-card');
+    if (copyCard) copyCard.onclick = async () => {
+      try { await navigator.clipboard.writeText(testCard()); toast(t('Test card copied')); } catch { toast(t('Copy failed: select the text instead')); }
+    };
     const draft = document.getElementById('draft-invite');
     if (draft) draft.onclick = () => draftInvite(me);
     const leave = document.getElementById('leave-group');
