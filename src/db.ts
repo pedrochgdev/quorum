@@ -173,5 +173,29 @@ function migrate(d: DatabaseSync) {
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
+
+  -- Outbox of buyer notifications. Sent by email when RESEND_API_KEY is set.
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    body TEXT NOT NULL,
+    quorum_id TEXT,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
   `);
+
+  // Columns added after the first release. SQLite has no ADD COLUMN IF NOT EXISTS.
+  const addColumn = (table: string, column: string, ddl: string) => {
+    const cols = d.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (!cols.some((c) => c.name === column)) d.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+  };
+  addColumn('commitments', 'token', 'TEXT'); // secret held by the buyer (or their agent); needed to leave a group
+  addColumn('commitments', 'refunded_amount', 'REAL NOT NULL DEFAULT 0');
+  addColumn('commitments', 'late', 'INTEGER NOT NULL DEFAULT 0'); // joined after the group closed
+  addColumn('commitments', 'lang', "TEXT NOT NULL DEFAULT 'en'");
+  addColumn('quorums', 'late_until', 'TEXT'); // late joins accepted until this time
+  addColumn('quorums', 'negotiated_price', 'REAL'); // price agreed by the agents, before any later price drop
 }
