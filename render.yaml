@@ -30,12 +30,9 @@ services:
         sync: false
       - key: CHANNEL3_API_KEY
         sync: false
-      - key: RESEND_API_KEY
-        sync: false # optional: email buyer notifications
       - key: CRON_SECRET
         generateValue: true
-      - key: MERCHANT_TOKEN
-        sync: false # optional: require a token on the merchant console API
+      # Optional, add by hand in the dashboard: RESEND_API_KEY (email buyers), MERCHANT_TOKEN (lock the merchant console)
       - key: LATE_JOIN_HOURS
         value: "24"
       - key: PAYPAL_MCP
