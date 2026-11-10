@@ -3,6 +3,10 @@
 import { config, describeModes } from '../config.ts';
 import { escapeHtml as e } from '../util.ts';
 
+// Static files are cached by browsers; a per-start version makes every deploy load fresh scripts and styles.
+const ASSET_VERSION = Date.now().toString(36);
+const asset = (path: string) => `${path}?v=${ASSET_VERSION}`;
+
 const LOGO = `<svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12.5" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="9" cy="12" r="2.6" fill="currentColor"/><circle cx="19" cy="12" r="2.6" fill="currentColor"/><circle cx="14" cy="19" r="2.6" fill="currentColor"/></svg>`;
 
 export function layout(title: string, body: string, opts: { scripts?: string[]; active?: 'home' | 'merchant' | '' } = {}) {
@@ -20,28 +24,30 @@ export function layout(title: string, body: string, opts: { scripts?: string[]; 
 <title>${e(title)} · Quorum</title>
 <meta name="description" content="Buy together. AI agents pool purchase intent into group buying power; PayPal holds each payment and charges only if the group forms.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="${asset('/styles.css')}">
 <script>window.QUORUM = ${JSON.stringify(clientConfig).replaceAll('<', '\\u003c')};</script>
 </head>
 <body>
 <header class="topbar">
   <a class="brand" href="/">${LOGO}<span>Quorum</span></a>
   <nav>
-    <a href="/" class="${opts.active === 'home' ? 'active' : ''}">Start a group</a>
-    <a href="/#groups">Open groups</a>
-    <a href="/merchant" class="${opts.active === 'merchant' ? 'active' : ''}">Merchant console</a>
+    <a href="/" class="${opts.active === 'home' ? 'active' : ''}" data-t>Start a group</a>
+    <a href="/#groups" data-t>Open groups</a>
+    <a href="/merchant" class="${opts.active === 'merchant' ? 'active' : ''}" data-t>Merchant console</a>
+    <button type="button" class="lang-toggle" id="lang-toggle" aria-label="Change language">ES</button>
   </nav>
 </header>
 <main>${body}</main>
 <footer class="footer">
-  <span>Quorum · built for the PayPal AI Hackathon</span>
+  <span data-t>Quorum · built for the PayPal AI Hackathon</span>
   <span class="modes">
     <span class="pill ${modes.paypal === 'mock' ? 'pill-warn' : 'pill-ok'}" title="PayPal mode">PayPal: ${e(modes.paypal === 'mock' ? 'simulated' : modes.paypal)}</span>
     <span class="pill" title="AI engine">AI: ${e(modes.ai.startsWith('anthropic') ? 'Claude' : 'heuristic')}</span>
     <span class="pill" title="Market data">Channel3: ${e(modes.channel3.startsWith('live') ? 'live' : 'off')}</span>
+    <span class="pill" title="Where the merchant agent's PayPal tools run">Agent tools: ${e(modes.merchantTools)}</span>
   </span>
 </footer>
-${(opts.scripts ?? []).map((s) => `<script src="${e(s)}" defer></script>`).join('\n')}
+${['/i18n.js', ...(opts.scripts ?? [])].map((s) => `<script src="${e(asset(s))}" defer></script>`).join('\n')}
 </body>
 </html>`;
 }
@@ -52,34 +58,49 @@ export function homePage() {
     `
 <section class="hero">
   <div class="hero-copy">
-    <p class="eyebrow">Group buying, run by agents</p>
-    <h1>Buy together.<br>Pay only if the group forms.</h1>
-    <p class="lead">Tell Quorum what you want. An AI agent finds people who want the same thing, PayPal holds your payment without charging it, and an agent negotiates a volume price for the whole group. No group, no charge.</p>
+    <p class="eyebrow" data-t>Group buying, run by agents</p>
+    <h1 data-t-html>Buy together.<br>Pay only if the group forms.</h1>
+    <p class="lead" data-t>Tell Quorum what you want. An AI agent finds people who want the same thing, PayPal holds your payment without charging it, and an agent negotiates a volume price for the whole group. No group, no charge.</p>
+    <ul class="trust">
+      <li data-t>PayPal authorizes, never charges, until the group forms</li>
+      <li data-t>You never pay more than you authorized</li>
+      <li data-t>Leave any time before the group closes</li>
+    </ul>
   </div>
   <form id="intent-form" class="card intent-card" autocomplete="on">
-    <label for="intent-text">What do you want to buy?</label>
-    <textarea id="intent-text" name="text" rows="3" maxlength="500" required placeholder="A compact espresso machine for two, under $200, before December"></textarea>
+    <label for="intent-text" data-t>What do you want to buy?</label>
+    <textarea id="intent-text" name="text" rows="3" maxlength="500" required placeholder="A compact espresso machine for two, under $200, before December" data-t-placeholder></textarea>
     <div class="examples" aria-label="Examples">
       <button type="button" class="chip" data-example="Compact espresso machine for two, under $200, before December">Espresso machine under $200</button>
       <button type="button" class="chip" data-example="Busco una carpa ultraligera para 2 personas, máximo $230">Carpa para 2 (español)</button>
       <button type="button" class="chip" data-example="Electric gooseneck kettle for pour-over coffee, less than $65">Gooseneck kettle</button>
     </div>
-    <label for="intent-email">Email <span class="muted">(optional, to hear when your group closes)</span></label>
+    <label for="intent-email"><span data-t>Email</span> <span class="muted" data-t>(optional, to hear when your group closes)</span></label>
     <input id="intent-email" name="email" type="email" placeholder="you@example.com">
-    <button class="btn btn-primary" type="submit">Find my group</button>
+    <button class="btn btn-primary" type="submit" data-t>Find my group</button>
     <div id="intent-result" class="intent-result" aria-live="polite"></div>
   </form>
 </section>
 
 <section class="how">
-  <div class="step"><span class="num">1</span><h3>Describe it</h3><p>In your own words, in English or Spanish. The intent agent extracts what you need, your max price and your deadline.</p></div>
-  <div class="step"><span class="num">2</span><h3>Commit without paying</h3><p>PayPal authorizes the list price. Nothing is charged. Each new member lowers the price for everyone.</p></div>
-  <div class="step"><span class="num">3</span><h3>Agents close the deal</h3><p>When the group forms, a buyer agent negotiates with the merchant's agent. You pay the final group price, never more than you authorized.</p></div>
+  <div class="step"><span class="num">1</span><h3 data-t>Describe it</h3><p data-t>In your own words, in English or Spanish. The intent agent extracts what you need, your max price and your deadline.</p></div>
+  <div class="step"><span class="num">2</span><h3 data-t>Commit without paying</h3><p data-t>PayPal authorizes the list price. Nothing is charged. Each new member lowers the price for everyone.</p></div>
+  <div class="step"><span class="num">3</span><h3 data-t>Agents close the deal</h3><p data-t>When the group forms, a buyer agent negotiates with the merchant's agent. You pay the final group price, never more than you authorized.</p></div>
+  <div class="step"><span class="num">4</span><h3 data-t>The price can only get better</h3><p data-t>Late buyers can still join. If they unlock a cheaper tier, PayPal refunds the difference to everyone already charged.</p></div>
 </section>
 
 <section id="groups" class="groups">
-  <div class="section-head"><h2>Open groups</h2><p class="muted">Join one directly, or describe what you want above.</p></div>
-  <div id="group-grid" class="group-grid"><p class="muted">Loading…</p></div>
+  <div class="section-head"><h2 data-t>Open groups</h2><p class="muted" data-t>Join one directly, or describe what you want above.</p></div>
+  <div id="group-grid" class="group-grid"><p class="muted" data-t>Loading…</p></div>
+</section>
+
+<section class="agents-strip card">
+  <div>
+    <p class="eyebrow" data-t>For AI assistants</p>
+    <h3 data-t>Your assistant can buy with a group</h3>
+    <p class="muted" data-t>Quorum is an MCP server. An assistant can find a group, start the PayPal authorization with a spending limit, check it and leave. Only you can approve the payment.</p>
+  </div>
+  <code class="endpoint">POST ${e(config.baseUrl)}/mcp</code>
 </section>`,
     { scripts: ['/common.js', '/app.js'], active: 'home' },
   );
@@ -88,7 +109,7 @@ export function homePage() {
 export function quorumPage(id: string) {
   return layout(
     'Group',
-    `<div id="quorum-root" data-quorum-id="${e(id)}" class="quorum-root"><p class="muted">Loading group…</p></div>`,
+    `<div id="quorum-root" data-quorum-id="${e(id)}" class="quorum-root"><p class="muted" data-t>Loading group…</p></div>`,
     { scripts: ['/common.js', '/quorum.js'] },
   );
 }
@@ -96,7 +117,7 @@ export function quorumPage(id: string) {
 export function merchantPage() {
   return layout(
     'Merchant console',
-    `<div id="merchant-root" class="merchant-root"><p class="muted">Loading console…</p></div>`,
+    `<div id="merchant-root" class="merchant-root"><p class="muted" data-t>Loading console…</p></div>`,
     { scripts: ['/common.js', '/merchant.js'], active: 'merchant' },
   );
 }

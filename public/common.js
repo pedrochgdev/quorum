@@ -1,5 +1,6 @@
 // Shared browser helpers (no framework).
 (function () {
+  const t = window.I18N.t;
   const esc = (s) =>
     String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -20,13 +21,13 @@
       body: body ? JSON.stringify(body) : undefined,
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+    if (!res.ok) throw new Error(t(data.error || `Request failed (${res.status})`));
     return data;
   }
 
   function timeLeft(iso) {
     const ms = Date.parse(iso) - Date.now();
-    if (ms <= 0) return 'closing…';
+    if (ms <= 0) return t('closing…');
     const s = Math.floor(ms / 1000);
     const d = Math.floor(s / 86400);
     const h = Math.floor((s % 86400) / 3600);
@@ -50,30 +51,30 @@
 
   const statusPill = (status) =>
     ({
-      open: '<span class="pill pill-accent">Open</span>',
-      negotiating: '<span class="pill pill-warn">Negotiating</span>',
-      settling: '<span class="pill pill-warn">Settling</span>',
-      closed: '<span class="pill pill-ok">Closed · paid</span>',
-      failed: '<span class="pill">Did not form</span>',
+      open: `<span class="pill pill-accent">${t('Open')}</span>`,
+      negotiating: `<span class="pill pill-warn">${t('Negotiating')}</span>`,
+      settling: `<span class="pill pill-warn">${t('Settling')}</span>`,
+      closed: `<span class="pill pill-ok">${t('Closed · paid')}</span>`,
+      failed: `<span class="pill">${t('Did not form')}</span>`,
     })[status] || `<span class="pill">${esc(status)}</span>`;
 
   /** Progress bar with a marker per discount tier. */
   function progressBar(q, mini) {
-    const maxMin = Math.max(...q.tiers.map((t) => t.min), q.minMembers);
+    const maxMin = Math.max(...q.tiers.map((x) => x.min), q.minMembers);
     const scale = maxMin + Math.max(1, Math.round(maxMin * 0.15));
     const pct = Math.min(100, (q.members / scale) * 100);
     const marks = q.tiers
-      .filter((t) => t.min > 1)
-      .map((t) => {
-        const left = (t.min / scale) * 100;
-        const reached = q.members >= t.min;
+      .filter((x) => x.min > 1)
+      .map((x) => {
+        const left = (x.min / scale) * 100;
+        const reached = q.members >= x.min;
         return `<div class="tier-mark ${reached ? 'reached' : ''}" style="left:${left}%">${
-          mini ? '' : `<span class="lbl">${money(t.price)}</span><span class="sub">${t.min} buyers</span>`
+          mini ? '' : `<span class="lbl">${money(x.price)}</span><span class="sub">${t('{n} buyers', { n: x.min })}</span>`
         }</div>`;
       })
       .join('');
-    return `<div class="progress ${mini ? 'mini' : ''}" role="progressbar" aria-valuemin="0" aria-valuemax="${scale}" aria-valuenow="${q.members}" aria-label="${q.members} buyers committed"><div class="progress-fill" style="width:${pct}%"></div>${marks}</div>`;
+    return `<div class="progress ${mini ? 'mini' : ''}" role="progressbar" aria-valuemin="0" aria-valuemax="${scale}" aria-valuenow="${q.members}" aria-label="${t('{n} buyers committed', { n: q.members })}"><div class="progress-fill" style="width:${pct}%"></div>${marks}</div>`;
   }
 
-  window.Q = { esc, money, api, timeLeft, toast, initial, statusPill, progressBar };
+  window.Q = { esc, money, api, timeLeft, toast, initial, statusPill, progressBar, t, lang: window.I18N.lang };
 })();
