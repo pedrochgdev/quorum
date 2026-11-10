@@ -62,7 +62,7 @@ The rule throughout: **the AI proposes, deterministic code moves the money.** Pr
 - A negotiation between two agents that you can watch live, where the merchant's agent prepares by reading PayPal through PayPal's own MCP server.
 - Being both an MCP client (of PayPal) and an MCP server (for any assistant) in a project with zero runtime dependencies.
 - A demand board that turns "nobody sells this yet" into a priced, ready-to-open group.
-- 31 unit tests and four end-to-end suites, including 2,000 randomized negotiations that never leave the allowed price range, a real Chrome clicking through the product, and a run of the whole app against the real PayPal sandbox with no manual step.
+- 33 unit tests and four end-to-end suites, including 2,000 randomized negotiations that never leave the allowed price range, a real Chrome clicking through the product, and a run of the whole app against the real PayPal sandbox with no manual step.
 - That browser test found a real bug before any user did: a live update arriving while the buyer was in PayPal's window rebuilt the PayPal button and cut the payment off.
 
 ## What we learned
@@ -90,7 +90,7 @@ Authorize-then-capture is an underused primitive: it turns commitment into somet
 
 1. Open the hosted demo. The footer shows which services are live (PayPal sandbox, Claude, Channel3, PayPal MCP server).
 2. On the home page, click an example request and "Find my group". Open the group.
-3. Enter any email, click "Debit or Credit Card" and pay with the sandbox test card shown under the buttons (expiry 12/30, CVV 123, any name and address). No PayPal account is needed. Nothing is charged: PayPal holds the amount.
+3. Enter any email, click the PayPal button, choose "Pay with debit or credit card" in PayPal's window and pay with the sandbox test card shown under the buttons (expiry 12/30, CVV 123, any name and address; choose to continue as a guest). No PayPal account is needed. Nothing is charged: PayPal holds the amount.
 4. Under "Demo controls", add two simulated buyers and press "Close group now". Watch the agents negotiate, then see what you were charged.
 5. Press "Add late buyer (simulated)" to see the price drop and the refund.
 6. Open "Merchant console" and press "Draft an offer with the pricing agent" on the standing-desk demand.

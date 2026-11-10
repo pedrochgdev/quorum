@@ -97,7 +97,7 @@ The last two need Chrome and no person: a real browser pays as a guest with a fr
 ### Demo script (under 3 minutes)
 
 1. Home: type a request, or click an example. The intent agent groups you ("5 people are looking for…"). Switch to Spanish with the ES button.
-2. Group page: commit with PayPal. In sandbox mode the page shows a test card: choose "Debit or Credit Card" and paste it. The progress bar moves; nothing is charged. "Leave the group" releases the hold.
+2. Group page: commit with PayPal. In sandbox mode the page shows a test card: click PayPal, choose "Pay with debit or credit card" in its window and paste it. The progress bar moves; nothing is charged. "Leave the group" releases the hold.
 3. "Draft my invite": the growth agent writes the message with your referral link. Add two simulated buyers.
 4. "Close group now": the merchant agent reads its PayPal account through PayPal's MCP server, then the agents negotiate live. Everyone is charged the final price ($199 authorized, about $165 captured). "How this price was reached" explains it.
 5. "Add late buyer": the eighth buyer reaches the next tier, the price drops, and everyone already charged is refunded the difference.
@@ -107,7 +107,7 @@ The last two need Chrome and no person: a real browser pays as a guest with a fr
 ## For judges
 
 - **Hosted demo:** `BASE_URL` of the deployed instance (add after deploying).
-- **Paying in the sandbox needs no account:** on a group page choose "Debit or Credit Card" in PayPal's checkout and use the test card the page shows (any future expiry, any CVV). A sandbox personal account works too.
+- **Paying in the sandbox needs no account:** on a group page click the PayPal button, choose "Pay with debit or credit card" in PayPal's window and use the test card the page shows (expiry 12/30, CVV 123, any name and address). A sandbox personal account works too.
 - Or run locally with no keys (simulation mode), as shown above.
 - **Connect an assistant:** add `https://<hosted-demo>/mcp` as an MCP server (Streamable HTTP) and ask it to "find a group for a compact espresso machine under $200 and join for me".
 
@@ -119,7 +119,7 @@ The last two need Chrome and no person: a real browser pays as a guest with a fr
 ## Tests
 
 ```bash
-npm test                  # 31 unit tests: pricing, negotiation limits (2,000 randomized cases), parsing, PayPal rules,
+npm test                  # 33 unit tests: pricing, negotiation limits (2,000 randomized cases), parsing, PayPal rules,
                           # leaving a group, late joins and price-drop refunds, pricing-agent repair, the MCP client, LLM paths with a stubbed API
 npm run i18n:check        # every interface string has a Spanish translation
 npm run e2e:mock          # full cycle over HTTP in simulation mode: checkout, live stream, close, late join + refunds, leave, demand board, MCP agent flow

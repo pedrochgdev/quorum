@@ -178,8 +178,8 @@
     'Your email': 'Tu correo',
     'PayPal is in simulation mode on this server: no sandbox credentials are set.':
       'PayPal está en modo simulación en este servidor: no hay credenciales de sandbox.',
-    'PayPal sandbox: no real money moves. No account needed: choose "Debit or Credit Card" and use this test card.':
-      'Sandbox de PayPal: no se mueve dinero real. No necesitas cuenta: elige "Tarjeta de débito o crédito" y usa esta tarjeta de prueba.',
+    'PayPal sandbox: no real money moves. No account needed: click PayPal, choose "Pay with debit or credit card" in its window, and use this test card.':
+      'Sandbox de PayPal: no se mueve dinero real. No necesitas cuenta: haz clic en PayPal, elige "Pagar con tarjeta de débito o crédito" en su ventana y usa esta tarjeta de prueba.',
     'Test card copied': 'Tarjeta de prueba copiada',
     'Grow the group': 'Haz crecer el grupo',
     'Every new member lowers the price': 'Cada persona nueva baja el precio',

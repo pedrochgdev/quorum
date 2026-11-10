@@ -368,7 +368,7 @@
   function sandboxHint() {
     if (window.QUORUM.paypalMode !== 'sandbox') return '';
     const card = testCard().replace(/(.{4})/g, '$1 ').trim();
-    return `<div class="sandbox-hint"><p class="muted small">${t('PayPal sandbox: no real money moves. No account needed: choose "Debit or Credit Card" and use this test card.')}</p>
+    return `<div class="sandbox-hint"><p class="muted small">${t('PayPal sandbox: no real money moves. No account needed: click PayPal, choose "Pay with debit or credit card" in its window, and use this test card.')}</p>
       <p class="test-card"><code id="test-card">${card}</code> <span class="muted small">12/30 · 123</span> <button type="button" class="btn btn-small" id="copy-card">${t('Copy')}</button></p></div>`;
   }
 
