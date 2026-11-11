@@ -123,7 +123,7 @@
     if (!n && q.status !== 'negotiating') return '';
     const turns = n ? n.turns.slice(0, Math.max(0, revealed)) : [];
     const more = negotiating(q) || revealPending(q);
-    const engine = n && n.engine === 'llm' ? t('Claude agents') : n && n.engine === 'heuristic' ? t('Rule-based agents') : t('Live');
+    const engine = n && n.engine === 'llm' ? t('AI agents') : n && n.engine === 'heuristic' ? t('Rule-based agents') : t('Live');
     return `<section class="card"><div class="row" style="justify-content:space-between"><h3>${t('Negotiation')}</h3><span class="pill ${more ? 'pill-warn' : ''}">${more ? `<span class="live-dot"></span>${t('Live')}` : engine}</span></div>
       <div class="transcript" id="transcript">${turns.map(bubble).join('')}${more ? typingBubble(q) : ''}</div></section>`;
   }

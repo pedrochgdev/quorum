@@ -57,7 +57,7 @@ Models: Anthropic Claude through the Messages API (`ANTHROPIC_MODEL`, default `c
 
 Untrusted text (buyer requests, product feeds, transcripts, tool output) is fenced in XML tags and the system prompts say to treat it as data. **The AI proposes; deterministic code moves the money.**
 
-Without `ANTHROPIC_API_KEY`, every agent falls back to deterministic logic, so the whole product still runs (the UI shows "Rule-based agents").
+The agents can also use OpenAI's Responses API. Set `OPENAI_API_KEY` or `GPT_API_KEY` and optionally `OPENAI_MODEL` / `OPENAI_FAST_MODEL` (both default to `gpt-6-luna`). Anthropic takes priority when both providers are configured. Without either provider's key, every agent falls back to deterministic logic and the UI shows "Rule-based agents".
 
 ## Run it
 
@@ -76,6 +76,7 @@ With no keys at all, Quorum runs in **simulation mode**: PayPal approval happens
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | Real PayPal sandbox checkout (Buttons + REST) and PayPal MCP tools for the merchant agent. |
 | `PAYPAL_WEBHOOK_ID` | Verifies webhooks sent to `/api/webhooks/paypal`. |
 | `ANTHROPIC_API_KEY` | Claude-powered agents. |
+| `OPENAI_API_KEY` or `GPT_API_KEY` | OpenAI-powered agents when no Anthropic key is set. |
 | `CHANNEL3_API_KEY` | Live market prices (hackathon promo code `PAYPAL-HACKATHON-2026`). |
 | `RESEND_API_KEY` | Emails buyer notifications. Without it they are only recorded in the outbox. |
 | `DEMO_ADMIN=true` | Shows "Add simulated buyer" and "Close group now" on group pages, for demos. |

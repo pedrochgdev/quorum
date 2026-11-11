@@ -157,7 +157,7 @@
       const comps = draft.market.length
         ? `<ul class="market">${draft.market.slice(0, 3).map((m) => `<li><span>${esc(m.title)} <span class="muted small">· ${esc(m.merchant)}</span></span><b>${money(m.price)}</b></li>`).join('')}</ul>`
         : '';
-      note.innerHTML = `<div class="notice"><b>${draft.engine === 'llm' ? t('Pricing agent (Claude)') : t('Pricing agent (rules)')}</b> · ${esc(draft.rationale)}
+      note.innerHTML = `<div class="notice"><b>${draft.engine === 'llm' ? t('Pricing agent (AI)') : t('Pricing agent (rules)')}</b> · ${esc(draft.rationale)}
         <p style="margin:.5rem 0 0"><b>${t('{reach} of {count} waiting buyers can afford the goal price of {price}.', { reach: draft.reach, count: d.count, price: money(draft.tiers[0].price) })}</b> ${t('Review the numbers below, especially the floor, before publishing.')}</p>${comps}</div>`;
     } catch (e) {
       note.innerHTML = `<div class="notice notice-danger">${esc(e.message)}</div>`;

@@ -1,12 +1,12 @@
 // Records the demo video on its own: a real Chrome goes through the product
-// with whatever services are configured in .env (PayPal sandbox, Claude,
+// with whatever services are configured in .env (PayPal sandbox, an LLM,
 // Channel3), captions are drawn on screen, and ffmpeg writes an MP4.
 //
 //   npm run demo:record            → out/quorum-demo.mp4 (about 2:45, 1920×1080, no audio)
 //
 // Needs Chrome and ffmpeg. With no keys it records the simulation mode, which
 // is fine for a rehearsal but not for the submission: record with the footer
-// showing PayPal sandbox and Claude.
+// showing PayPal sandbox and the configured LLM.
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -65,9 +65,9 @@ for (let i = 0; i < 60; i++) {
   await sleep(100);
 }
 const sandbox = modes.paypal === 'sandbox';
-const claude = String(modes.ai).startsWith('anthropic');
+const llm = /^(anthropic|openai):/.test(String(modes.ai));
 console.log(`Recording with PayPal: ${modes.paypal}, AI: ${modes.ai}, Channel3: ${modes.channel3}, agent tools: ${modes.merchantTools}`);
-if (!sandbox || !claude) console.log('Note: this is a rehearsal recording. Add PayPal sandbox and Anthropic keys to .env for the real one.');
+if (!sandbox || !llm) console.log('Note: this is a rehearsal recording. Add PayPal sandbox and an OpenAI or Anthropic key to .env for the real one.');
 
 const browser = await Browser.launch({ headless: !process.env.HEADFUL, width: 1280, height: 720 });
 const rec = new Recorder(browser, join(dataDir, 'frames'));
@@ -135,7 +135,7 @@ try {
   await rec.click('#intent-form button[type=submit]');
   await page.waitForSelector('.result-card a.btn-primary', 60_000);
   await rec.scrollTo('.result-card', 'center');
-  await say(`${claude ? 'An intent agent on Claude' : 'The intent agent'} extracts the product and the maximum price, and finds people who want the same thing. Four are already waiting.`, 6800);
+  await say(`${llm ? 'An AI intent agent' : 'The intent agent'} extracts the product and the maximum price, and finds people who want the same thing. Four are already waiting.`, 6800);
 
   // 3. Commit with PayPal: authorize, never charge
   await rec.click('.result-card a.btn-primary');
@@ -165,7 +165,7 @@ try {
   // 5. Live negotiation
   await rec.click('#force-close');
   await rec.caption(
-    sandbox && claude
+    sandbox && llm
       ? "The group closes. First, the merchant's agent reads its own PayPal account through PayPal's MCP server."
       : "The group closes. First, the merchant's agent checks its own sales, then the two agents negotiate.",
   );

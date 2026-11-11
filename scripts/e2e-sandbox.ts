@@ -10,7 +10,7 @@
 //   4. A late buyer reaches a cheaper tier: PayPal refunds the difference
 //
 // Needs PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET (sandbox) and Chrome. Agents run
-// on rules here so the check costs nothing; set E2E_USE_LLM=1 to use Claude.
+// on rules here so the check costs nothing; set E2E_USE_LLM=1 to use the configured LLM.
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -43,6 +43,8 @@ const env = {
   PAYPAL_CLIENT_SECRET: config.paypal.clientSecret,
   PAYPAL_WEBHOOK_ID: '',
   ANTHROPIC_API_KEY: process.env.E2E_USE_LLM ? config.anthropic.apiKey : '',
+  OPENAI_API_KEY: process.env.E2E_USE_LLM ? config.openai.apiKey : '',
+  GPT_API_KEY: '',
   CHANNEL3_API_KEY: '',
   DEMO_ADMIN: 'true',
   QUORUM_ENV_FILE: 'none',

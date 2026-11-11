@@ -89,6 +89,8 @@ const env = {
   PAYPAL_WEBHOOK_ID: 'WH-STUB',
   PAYPAL_API_BASE: `http://localhost:${stubPort}`,
   ANTHROPIC_API_KEY: '',
+  OPENAI_API_KEY: '',
+  GPT_API_KEY: '',
   CHANNEL3_API_KEY: '',
   DEMO_ADMIN: 'true',
   QUORUM_ENV_FILE: 'none', // never read real keys from .env

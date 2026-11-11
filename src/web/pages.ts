@@ -1,6 +1,6 @@
 // Server-rendered page shells. Interactive parts are rendered by small
 // vanilla JS files in /public that talk to the JSON API.
-import { config, describeModes } from '../config.ts';
+import { config, describeModes, llmProvider } from '../config.ts';
 import { escapeHtml as e } from '../util.ts';
 
 // Static files are cached by browsers; a per-start version makes every deploy load fresh scripts and styles.
@@ -11,6 +11,8 @@ const LOGO = `<svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"
 
 export function layout(title: string, body: string, opts: { scripts?: string[]; active?: 'home' | 'merchant' | '' } = {}) {
   const modes = describeModes();
+  const provider = llmProvider();
+  const aiName = provider ? { anthropic: 'Claude', openai: 'OpenAI' }[provider] : 'heuristic';
   const clientConfig = {
     paypalMode: config.paypal.mode,
     paypalClientId: config.paypal.mode === 'mock' ? null : config.paypal.clientId,
@@ -42,7 +44,7 @@ export function layout(title: string, body: string, opts: { scripts?: string[]; 
   <span data-t>Quorum · built for the PayPal AI Hackathon</span>
   <span class="modes">
     <span class="pill ${modes.paypal === 'mock' ? 'pill-warn' : 'pill-ok'}" title="PayPal mode">PayPal: ${e(modes.paypal === 'mock' ? 'simulated' : modes.paypal)}</span>
-    <span class="pill" title="AI engine">AI: ${e(modes.ai.startsWith('anthropic') ? 'Claude' : 'heuristic')}</span>
+    <span class="pill" title="AI engine">AI: ${e(aiName)}</span>
     <span class="pill" title="Market data">Channel3: ${e(modes.channel3.startsWith('live') ? 'live' : 'off')}</span>
     <span class="pill" title="Where the merchant agent's PayPal tools run">Agent tools: ${e(modes.merchantTools)}</span>
   </span>

@@ -28,6 +28,8 @@ const env = {
   PAYPAL_CLIENT_ID: '',
   PAYPAL_CLIENT_SECRET: '',
   ANTHROPIC_API_KEY: '',
+  OPENAI_API_KEY: '',
+  GPT_API_KEY: '',
   CHANNEL3_API_KEY: '',
   DEMO_ADMIN: 'true',
   QUORUM_ENV_FILE: 'none',

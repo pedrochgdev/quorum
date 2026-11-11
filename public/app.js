@@ -29,7 +29,7 @@
         p.deadline && `<span class="pill">${t('by {date}', { date: esc(p.deadline) })}</span>`,
         ...(p.must_have || []).slice(0, 4).map((m) => `<span class="pill">${esc(m)}</span>`),
       ].filter(Boolean).join('');
-      const engine = `<span class="pill pill-accent">${r.engine === 'llm' ? t('Read by the intent agent (Claude)') : t('Read by rules')}</span>`;
+      const engine = `<span class="pill pill-accent">${r.engine === 'llm' ? t('Read by the intent agent (AI)') : t('Read by rules')}</span>`;
       if (r.quorumId) {
         out.innerHTML = `<div class="result-card">
           <h3>${r.outcome === 'opened' ? t('We opened a new group for you') : t('We found your group')}</h3>

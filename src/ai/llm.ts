@@ -1,22 +1,28 @@
-// Anthropic Messages API over fetch (no dependencies).
+// Anthropic Messages and OpenAI Responses APIs over fetch (no dependencies).
 // Every decision that touches prices comes back as JSON matching a schema
 // (structured outputs), so the code can validate it. When no API key is set,
 // or a call fails, callers fall back to deterministic logic.
-import { config, hasLLM } from '../config.ts';
+import { config, hasLLM, llmModel, llmProvider } from '../config.ts';
+import { callOpenAI } from './openai.ts';
 
 export type JsonSchema = Record<string, unknown>;
 
-type ContentBlock =
+export type ContentBlock =
   | { type: 'text'; text: string }
   | { type: 'tool_use'; id: string; name: string; input: any }
   | { type: 'tool_result'; tool_use_id: string; content: string }
   | { type: string; [k: string]: unknown };
 
-type Message = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
-type ApiReply = { content: ContentBlock[]; stopReason: string | null };
+export type Message = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
+export type ApiReply = { content: ContentBlock[]; stopReason: string | null };
+export type LlmUsage = { calls: number; inputTokens: number; outputTokens: number };
 
 /** Running token count, shown on /api/health so a demo budget is easy to watch. */
-export const usage = { calls: 0, inputTokens: 0, outputTokens: 0 };
+export const usage: LlmUsage = { calls: 0, inputTokens: 0, outputTokens: 0 };
+
+function callModel(body: Record<string, unknown>): Promise<ApiReply> {
+  return llmProvider() === 'openai' ? callOpenAI(body, usage) : callAnthropic(body);
+}
 
 async function callAnthropic(body: Record<string, unknown>): Promise<ApiReply> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -96,8 +102,8 @@ export async function structured<T>(opts: {
 }): Promise<T | null> {
   if (!hasLLM()) return null;
   try {
-    const { content, stopReason } = await callAnthropic({
-      model: opts.fast ? config.anthropic.fastModel : config.anthropic.model,
+    const { content, stopReason } = await callModel({
+      model: llmModel(opts.fast),
       max_tokens: opts.maxTokens ?? 2000,
       system: opts.system,
       output_config: { effort: 'low', format: { type: 'json_schema', schema: strictSchema(opts.schema) } },
@@ -145,8 +151,8 @@ export async function runAgent<T>(opts: {
   const system = `${opts.system}\nWhen you have what you need, finish by calling the "${opts.final.name}" tool. Do not answer in plain text.`;
   try {
     for (let step = 0; step < (opts.maxSteps ?? 5); step++) {
-      const { content, stopReason } = await callAnthropic({
-        model: config.anthropic.model,
+      const { content, stopReason } = await callModel({
+        model: llmModel(),
         max_tokens: 2000,
         system,
         tools,
@@ -154,7 +160,7 @@ export async function runAgent<T>(opts: {
         output_config: { effort: 'low' },
         messages,
       });
-      if (stopReason === 'refusal') break;
+      if (stopReason === 'refusal' || stopReason === 'max_tokens') break;
       messages.push({ role: 'assistant', content });
       const uses = content.filter((b): b is { type: 'tool_use'; id: string; name: string; input: any } => b.type === 'tool_use');
       const final = uses.find((u) => u.name === opts.final.name);

@@ -66,6 +66,12 @@ export const config = {
     fastModel: env('ANTHROPIC_FAST_MODEL', 'claude-haiku-5-5'),
   },
 
+  openai: {
+    apiKey: env('OPENAI_API_KEY') || env('GPT_API_KEY'),
+    model: env('OPENAI_MODEL', 'gpt-6-luna'),
+    fastModel: env('OPENAI_FAST_MODEL', env('OPENAI_MODEL', 'gpt-6-luna')),
+  },
+
   openaiEmbeddings: {
     apiKey: env('OPENAI_API_KEY'),
     model: env('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small'),
@@ -100,13 +106,24 @@ export const config = {
 };
 
 export const isMockPayPal = () => config.paypal.mode === 'mock';
-export const hasLLM = () => Boolean(config.anthropic.apiKey);
+export function llmProvider(): 'anthropic' | 'openai' | null {
+  if (config.anthropic.apiKey) return 'anthropic';
+  if (config.openai.apiKey) return 'openai';
+  return null;
+}
+
+export const hasLLM = () => Boolean(llmProvider());
+export function llmModel(fast = false): string {
+  const settings = config[llmProvider() ?? 'anthropic'];
+  return fast ? settings.fastModel : settings.model;
+}
 export const hasChannel3 = () => Boolean(config.channel3.apiKey);
 
 export function describeModes() {
+  const provider = llmProvider();
   return {
     paypal: config.paypal.mode,
-    ai: hasLLM() ? `anthropic:${config.anthropic.model}` : 'heuristic (no ANTHROPIC_API_KEY)',
+    ai: provider ? provider + ':' + llmModel() : 'heuristic (no LLM API key)',
     embeddings: config.openaiEmbeddings.apiKey ? `openai:${config.openaiEmbeddings.model}` : 'local hashed n-grams',
     channel3: hasChannel3() ? 'live' : 'off (no CHANNEL3_API_KEY)',
     merchantTools: config.paypal.mode === 'mock' ? 'simulated ledger' : config.paypal.mcp ? 'PayPal MCP server' : 'PayPal REST API',

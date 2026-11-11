@@ -20,6 +20,8 @@ const env = {
   PAYPAL_CLIENT_ID: '',
   PAYPAL_CLIENT_SECRET: '',
   ANTHROPIC_API_KEY: process.env.E2E_USE_LLM ? process.env.ANTHROPIC_API_KEY : '',
+  OPENAI_API_KEY: process.env.E2E_USE_LLM ? process.env.OPENAI_API_KEY : '',
+  GPT_API_KEY: process.env.E2E_USE_LLM ? process.env.GPT_API_KEY : '',
   CHANNEL3_API_KEY: '',
   DEMO_ADMIN: 'true',
   QUORUM_ENV_FILE: 'none', // never read real keys from .env

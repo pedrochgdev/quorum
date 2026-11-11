@@ -19,9 +19,13 @@ const ESPRESSO = 'Compact 15-bar espresso machine';
 
 export async function seedDemo(opts: { llm?: boolean } = {}): Promise<{ groupA: Quorum; groupB: Quorum }> {
   // Seeding must give the same demo every time, so the sample requests are routed by
-  // rules, not by the model. (Real requests typed into the app still use Claude.)
+  // rules, not by the model. Real requests still use the configured LLM.
   const key = config.anthropic.apiKey;
-  if (!opts.llm) config.anthropic.apiKey = '';
+  const openaiKey = config.openai.apiKey;
+  if (!opts.llm) {
+    config.anthropic.apiKey = '';
+    config.openai.apiKey = '';
+  }
   try {
     const cafe = createMerchant('Café Altura', null);
     const trail = createMerchant('Trailhead Supply', null);
@@ -128,6 +132,7 @@ export async function seedDemo(opts: { llm?: boolean } = {}): Promise<{ groupA: 
     return { groupA, groupB };
   } finally {
     config.anthropic.apiKey = key;
+    config.openai.apiKey = openaiKey;
   }
 }
 
